@@ -32,3 +32,19 @@
   invocation, which reads as current. The script itself stops with the run's error.
 - **kind:** found late
 - **found:** 2026-10-31
+
+### K4 · `VlasovMethods.GeometricIntegrator(model, tspan, dt, RK4())` does not infer a concrete type, so the step loops that use its result dispatch at run time.
+
+- **location:** `src/full_order.jl:88`
+- **evidence:** the same call is at `src/full_order.jl:244`, in `measure_step_time`. VlasovMethods
+  (`main` at `8937e91`, `src/gridbased/vlasov_poisson_1d1v.jl:127-129`) builds its `ODEProblem`
+  from a parameter `NamedTuple`. `Base.return_types` of the call on the 64 × 128 linear Landau
+  model gives a `Union` of two `UnionAll` types, whose `ODE` type parameter holds
+  `@NamedTuple{arakawa::DataType, v::DataType, G::DataType, …}`; the object built at run time has
+  concrete field types. On 64 × 128 one `RK4()` step takes 2.72–2.76e-4 s, and of the 10.7 kB
+  that a step allocates, about 2 kB is boxing and dynamic dispatch. A function barrier around
+  the step loop changes the time per step by a factor of 0.99–1.06, within the noise of the
+  machine, so the time per step in `full_order_cost.toml` is not distorted. The fix belongs in
+  VlasovMethods.
+- **kind:** upstream
+- **found:** 2026-10-31
