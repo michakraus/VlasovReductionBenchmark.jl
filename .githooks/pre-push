@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Shared pre-push hook. Canonical copy: ~/Research/Harness/githooks/pre-push
+# Installed into each repository's .githooks/ by harness githooks — edit the canonical
+# copy and re-run the installer, never the copy in a repository.
+#
+# The launcher of pre-push.jl, which harness githooks installs beside it and which holds the
+# gate and the suite. git's ref lines reach it on stdin.
+
+if ! command -v julia >/dev/null 2>&1; then
+    printf 'pre-push: julia is not on the PATH.\n' >&2
+    exit 1
+fi
+exec julia --startup-file=no "$(dirname "$0")/pre-push.jl" "$@"

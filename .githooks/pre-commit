@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Shared pre-commit hook. Canonical copy: ~/Research/Harness/githooks/pre-commit
+# Installed into each repository's .githooks/ by harness githooks — edit the canonical
+# copy and re-run the installer, never the copy in a repository.
+#
+# The launcher of pre-commit.jl, which harness githooks installs beside it and which holds the
+# stages. One Julia process runs them all; only the load test starts a child.
+
+if ! command -v julia >/dev/null 2>&1; then
+    printf 'pre-commit: julia is not on the PATH.\n' >&2
+    exit 1
+fi
+exec julia --startup-file=no "$(dirname "$0")/pre-commit.jl" "$@"
