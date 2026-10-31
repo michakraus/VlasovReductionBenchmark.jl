@@ -18,8 +18,9 @@ const FULL_MODE = (grid = (64, 128), landau_window = (0.0, 40.0), landau_rtol = 
     two_stream_rtol = 0.05)
 
 """
-The settings of [`FULL_MODE`](@ref) for the smoke mode. On its coarse grid the recurrence spoils
-a linear Landau fit over ``t ∈ [0, 40]``, so its window ends at ``t = 25``.
+The settings of [`FULL_MODE`](@ref) for the smoke mode. On its coarse grid the maxima of
+``\\log|E_1|`` of linear Landau damping stop falling near ``t = 27`` (measured), so its fit
+window ends at ``t = 25``.
 """
 const SMOKE_MODE = (grid = (32, 64), landau_window = (0.0, 25.0), landau_rtol = 0.10,
     two_stream_rtol = 0.10)
@@ -259,16 +260,16 @@ end
     full_order_cost(results_dir, nx, nv; steps = 100)
 
 Measure [`measure_step_time`](@ref) in a fresh Julia process on the active project, and write it
-with the machine's `uptime` and the id `pid` of the measuring process to
+with the machine's `uptime`, the id `pid` and the number of `threads` of the measuring process to
 `<results_dir>/full_order_cost.toml`.
 """
 function full_order_cost(results_dir::AbstractString, nx::Integer, nv::Integer;
         steps::Integer = 100)
-    code = "using VlasovReductionBenchmark; println(getpid(), ' ', " *
+    code = "using VlasovReductionBenchmark; println(getpid(), ' ', Threads.nthreads(), ' ', " *
            "VlasovReductionBenchmark.measure_step_time($nx, $nv; steps = $steps))"
     cmd = `$(Base.julia_cmd()) --startup-file=no --project=$(Base.active_project()) -e $code`
-    pid, seconds = split(last(readlines(cmd)))
-    pid, seconds = parse(Int, pid), parse(Float64, seconds)
+    pid, threads, seconds = split(last(readlines(cmd)))
+    pid, threads, seconds = parse(Int, pid), parse(Int, threads), parse(Float64, seconds)
     uptime = Sys.isunix() ? readchomp(`uptime`) :
              @sprintf("up %.0f s, load averages %s", Sys.uptime(), join(Sys.loadavg(), " "))
 
@@ -278,7 +279,7 @@ function full_order_cost(results_dir::AbstractString, nx::Integer, nv::Integer;
         TOML.print(io,
             Dict("nx" => nx, "nv" => nv, "steps" => steps, "dt" => TIMESTEP,
                 "method" => "RK4", "seconds_per_step" => seconds, "uptime" => uptime,
-                "julia" => string(VERSION), "threads" => Threads.nthreads(), "pid" => pid))
+                "julia" => string(VERSION), "threads" => threads, "pid" => pid))
     end
     @printf("full-order cost on %d × %d: %.3e s per step (%s)\n", nx, nv, seconds, uptime)
     flush(stdout)

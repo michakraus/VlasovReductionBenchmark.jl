@@ -1,17 +1,11 @@
 using HDF5
+using LinearAlgebra: dot
+using PoissonSolvers: FFTWBasis, Potential, solve
 using TOML
 using VlasovReductionBenchmark
 using Test
 
-# The exception that `f()` throws, or `nothing` when it throws none.
-function thrown(f)
-    try
-        f()
-    catch e
-        return e
-    end
-    return nothing
-end
+include("helpers/thrown.jl")
 
 # A short linear Landau run, 20 steps of 0.05, for the tests of the run's assertions.
 short_case() = VlasovCase("linear_landau", maxwellian, 0.01, 0.5, 1.0)
@@ -63,7 +57,9 @@ end
     @test landau_rate_fit(t, y, (0.0, 9.5)).npeaks == 4
     e = thrown(() -> landau_rate_fit(t, y, (0.0, 7.5)))
     @test e isa ErrorException
-    @test occursin(r"^the Landau fit found 3 maxima", e.msg)
+    @test occursin(
+        r"^the Landau fit found 3 maxima of log\|E₁\| in \[0\.0, 7\.5\]; it needs at least four$",
+        e.msg)
     # a plateau of two equal samples is one maximum
     tp = collect(0.1:0.1:2.4)
     @test landau_rate_fit(tp, repeat([0.0, 1.0, 1.0, 0.0], 6), (0.0, 2.4)).npeaks == 6
@@ -82,19 +78,21 @@ end
 end
 
 @testset "Diagnostics" begin
-    # f = (1 + cos x) on 4 x-nodes of [0, 2π), times 1 at v = 0 and 2 at v = 1, with G = I:
-    # ρ = 3 hv (1 + cos x), and the mode k = 1 of ρ has the amplitude 3 hv
-    x, v = range(0, 2π; length = 5)[1:4], [0.0, 1.0]
+    # f = (1 + cos kx) with k = 1/2 on 4 x-nodes of [0, 4π), times 1 at v = 0 and 2 at v = 1,
+    # with G = I: ρ = φ = 3 hv (1 + cos kx)
+    k = 0.5
+    x, v = range(0, 4π; length = 5)[1:4], [0.0, 1.0]
     hx, hv = step(x), 1.0
-    f = (1 .+ cos.(x)) .* [1.0 2.0]
+    f = (1 .+ cos.(k .* x)) .* [1.0 2.0]
     d = VlasovReductionBenchmark.diagnostics(
         vec(f), [1.0 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1],
-        1.0, x, v, hx, hv)
-    # f = [2 4; 1 2; 0 0; 1 2] and ρ = [6, 3, 0, 3], with hx = π/2
+        k, x, v, hx, hv)
+    # f = [2 4; 1 2; 0 0; 1 2] and ρ = [6, 3, 0, 3], with hx = π
     @test d.mass ≈ 12hx rtol=1e-14
     @test d.field_energy ≈ 27hx rtol=1e-14
     @test d.energy ≈ 4hx + 27hx rtol=1e-14
-    @test d.E1 ≈ 3 rtol=1e-14
+    # Σ φ_i e^{-ikx_i} = 6 - 3i + 0 + 3i = 6, so |E₁| = k (2/4) 6 = 1.5
+    @test d.E1 ≈ 1.5 rtol=1e-14
     @test d.l2 ≈ sqrt(30hx) rtol=1e-14
     # f vanishes at x = π, so two nodes are skipped by the entropy and counted
     @test d.nonpositive == 2
@@ -102,7 +100,7 @@ end
 end
 
 @testset "Settings of the two modes" begin
-    # the decided grids, fit windows and tolerances; the suite runs only the smoke mode
+    # the decided grids, fit windows and tolerances; this file runs only the smoke mode
     @test VlasovReductionBenchmark.FULL_MODE ==
           (grid = (64, 128), landau_window = (0.0, 40.0), landau_rtol = 0.02,
         two_stream_rtol = 0.05)
@@ -185,22 +183,33 @@ include("../scripts/full_order.jl")
           (runs_dir = "a", results_dir = "b", smoke = false)
     @test parse_options(["--smoke", "--results-dir", "b", "--runs-dir", "a"]) ==
           (runs_dir = "a", results_dir = "b", smoke = true)
+    usage = r"^usage: julia --project scripts/full_order\.jl --runs-dir <d> --results-dir <r> \[--smoke\]$"
     e = thrown(() -> parse_options(["--runs-dir", "a"]))
     @test e isa ArgumentError
-    @test occursin(
-        r"^usage: julia --project scripts/full_order\.jl --runs-dir <d> --results-dir <r> \[--smoke\]$",
-        e.msg)
-    @test thrown(() -> parse_options(["--runs-dir", "a", "--results-dir", "b", "--x"])) isa
-          ArgumentError
+    @test occursin(usage, e.msg)
+    e = thrown(() -> parse_options(["--runs-dir", "a", "--results-dir", "b", "--x"]))
+    @test e isa ArgumentError
+    @test occursin(usage, e.msg)
     # an option without its value
-    @test thrown(() -> parse_options(["--runs-dir", "a", "--results-dir"])) isa
-          ArgumentError
+    e = thrown(() -> parse_options(["--runs-dir", "a", "--results-dir"]))
+    @test e isa ArgumentError
+    @test occursin(usage, e.msg)
 end
 
 @testset "Smoke run of the script" begin
     mktempdir() do root
         runs, results = joinpath(root, "runs"), joinpath(root, "results")
-        main(["--runs-dir", runs, "--results-dir", results, "--smoke"])
+        output = joinpath(root, "output.txt")
+        # the measuring process starts with 3 threads from the environment; this process keeps
+        # the count it started with, which is not 3 where the suite runs here
+        withenv("JULIA_NUM_THREADS" => "3") do
+            open(output, "w") do io
+                redirect_stdout(io) do
+                    main(["--runs-dir", runs, "--results-dir", results, "--smoke"])
+                end
+            end
+        end
+        printed = read(output, String)
 
         sweep = ("linear_landau_alpha0.005.h5" => "train",
             "linear_landau_alpha0.01.h5" => "train",
@@ -220,8 +229,48 @@ end
                 @test ts[end] ≈ attrs(f)["tend"] atol=1e-12
                 @test size(read(f, "snapshots")) == (32, 64, length(ts))
                 @test eltype(read(f, "snapshots")) == Float64
+
+                # The series of the file at the snapshot steps, recomputed from the snapshots
+                # on the grid of the decisions, with φ from PoissonSolvers' own solve.
+                k, nx, nv = attrs(f)["k"], 32, 64
+                L = 2π / k
+                x, hx, hv = (0:(nx - 1)) .* (L / nx), L / nx, 12 / (nv - 1)
+                solver = Potential(FFTWBasis((0.0, L), nx)).solver
+                S, steps = read(f, "snapshots"), round.(Int, ts ./ 0.05) .+ 1
+                l2(F) = sqrt(hx * hv * sum(abs2, F))
+                entropy(F) = -hx * hv * sum(z * log(z) for z in F if z > 0; init = 0.0)
+                ρ = [hv .* vec(sum(S[:, :, n]; dims = 2)) for n in eachindex(ts)]
+                φ = [solve(solver, ρn) for ρn in ρ]
+                # The two Poisson solves differ by up to 4e-7 relative in the field energy and
+                # 2e-12 in |E₁| (measured), where the field is weakest.
+                @test read(f, "field_energy")[steps] ≈
+                      [hx / 2 * dot(ρn, φn) for (ρn, φn) in zip(ρ, φ)] rtol=1e-5
+                @test read(f, "E1")[steps] ≈
+                      [k * (2 / nx) * abs(sum(φn .* exp.(-im * k .* x))) for φn in φ] rtol=1e-9
+                @test read(f, "l2_drift")[steps] ≈
+                      [(l2(S[:, :, n]) - l2(S[:, :, 1])) / l2(S[:, :, 1])
+                       for n in eachindex(ts)] atol=1e-13
+                @test read(f, "entropy_drift")[steps] ≈
+                      [(entropy(S[:, :, n]) - entropy(S[:, :, 1])) /
+                       abs(entropy(S[:, :, 1]))
+                       for n in eachindex(ts)] atol=1e-13
+                @test read(f, "nonpositive_nodes")[steps] ==
+                      [count(≤(0), S[:, :, n]) for n in eachindex(ts)]
             end
         end
+
+        # The rate checks fit the run at α = 0.01 over the smoke window [0, 25], and a two-stream
+        # run at α = 1e-3 over [5, 25]; the script prints each fit to five decimals.
+        fitted(name) = parse(Float64,
+            match(Regex("rate check $name: fitted (\\S+),"), printed).captures[1])
+        landau = h5open(joinpath(runs, "linear_landau_alpha0.01.h5")) do f
+            landau_rate_fit(read(f, "times"), log.(read(f, "E1")), (0.0, 25.0))
+        end
+        @test abs(fitted("linear Landau γ") - landau.γ) ≤ 1e-5
+        @test abs(fitted("linear Landau ω") - landau.ω) ≤ 1e-5
+        check = run_case(VlasovCase("two_stream", two_stream_profile, 1e-3, 0.5, 25.0), 32, 64)
+        @test abs(fitted("two-stream growth rate") -
+                  growth_rate_fit(check.times, log.(check.E1), (5.0, 25.0))) ≤ 1e-5
 
         cost = TOML.parsefile(joinpath(results, "full_order_cost.toml"))
         @test cost["steps"] == 100
@@ -230,5 +279,6 @@ end
         @test !isempty(cost["uptime"])
         # measured in a fresh process, not in this one
         @test cost["pid"] != getpid()
+        @test cost["threads"] == 3
     end
 end

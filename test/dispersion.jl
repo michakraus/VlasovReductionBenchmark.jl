@@ -1,15 +1,8 @@
+using QuadGK: quadgk
 using VlasovReductionBenchmark
 using Test
 
-# The message of the exception that `f()` throws, or `nothing` when it throws none.
-function thrown(f)
-    try
-        f()
-    catch e
-        return e
-    end
-    return nothing
-end
+include("helpers/thrown.jl")
 
 @testset "Plasma dispersion function" begin
     # Z(0) = i√π, and on the real line Z(x) = -2 D(x) + i√π exp(-x²), with Dawson's integral
@@ -17,12 +10,19 @@ end
     @test plasma_dispersion(0.0) ≈ im * sqrt(π) rtol=1e-14
     @test plasma_dispersion(1.0) ≈ -2 * 0.5380795069127684 + im * sqrt(π) * exp(-1) rtol=1e-12
 
-    # Z is analytic, with Z'(ζ) = -2 (1 + ζ Z(ζ)), on both sides of the real line; a reflection
-    # into the lower half-plane breaks the identity there.
+    # Z is analytic, with Z'(ζ) = -2 (1 + ζ Z(ζ)), on both sides of the real line.
     h = 1e-5
     for ζ in (0.7 + 0.4im, 1.0 - 0.1im, 1.2 - 0.6im)
         dZ = (plasma_dispersion(ζ + h) - plasma_dispersion(ζ - h)) / (2h)
         @test dZ ≈ -2 * (1 + ζ * plasma_dispersion(ζ)) rtol=1e-8
+    end
+
+    # Below the real line the Landau contour passes under the pole, so Z is the integral over
+    # the real line plus the residue term 2i√π exp(-ζ²). The reflection conj(Z(conj ζ)) also
+    # solves the identity above, and differs from Z by that term.
+    for ζ in (1.0 - 0.1im, 1.2 - 0.6im)
+        integral, _ = quadgk(s -> exp(-s^2) / (s - ζ), -Inf, Inf; rtol = 1e-13)
+        @test plasma_dispersion(ζ) ≈ integral / sqrt(π) + 2im * sqrt(π) * exp(-ζ^2) rtol=1e-10
     end
 end
 
@@ -49,8 +49,11 @@ end
     @test occursin(
         r"^the quadrature over the real line is the Landau contour only for Im ω > 0; got ω = 1\.0 - 0\.1im$",
         e.msg)
-    @test thrown(() -> dielectric_quadrature(two_stream_derivative, 1.0 + 0.0im, k)) isa
-          ArgumentError
+    e = thrown(() -> dielectric_quadrature(two_stream_derivative, 1.0 + 0.0im, k))
+    @test e isa ArgumentError
+    @test occursin(
+        r"^the quadrature over the real line is the Landau contour only for Im ω > 0; got ω = 1\.0 \+ 0\.0im$",
+        e.msg)
 end
 
 @testset "Maxwellian root at k = 0.5" begin

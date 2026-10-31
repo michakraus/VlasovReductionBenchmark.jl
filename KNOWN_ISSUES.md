@@ -13,3 +13,22 @@
   themselves is not measured.
 - **kind:** not verified
 - **found:** 2026-10-31
+
+### K2 · `landau_root` and `two_stream_root` accept a wave number for which they return a wrong root or do not converge.
+
+- **location:** `src/dispersion.jl:96`
+- **evidence:** the benchmark uses `k = 0.5` only. `landau_root(-0.5)` returns
+  `1.4156618886045367 + 0.15335946690960475im`, the growing root, with no error, and
+  `two_stream_root(0.1)` throws "Newton's iteration did not converge in 50 steps from
+  ω = 0.0 + 0.25im" from its default guess.
+- **kind:** found late
+- **found:** 2026-10-31
+
+### K3 · A run that throws leaves the file of the same name from an earlier invocation in `<d>`.
+
+- **location:** `src/full_order.jl:133`
+- **evidence:** `run_case` writes its file only when the run completes, and removes no file
+  when it throws, so after a failed run `<d>` can hold a file of that case from an earlier
+  invocation, which reads as current. The script itself stops with the run's error.
+- **kind:** found late
+- **found:** 2026-10-31
