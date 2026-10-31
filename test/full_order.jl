@@ -201,7 +201,8 @@ end
         runs, results = joinpath(root, "runs"), joinpath(root, "results")
         output = joinpath(root, "output.txt")
         # the measuring process starts with 3 threads from the environment; this process keeps
-        # the count it started with, which is not 3 where the suite runs here
+        # the count it started with, so the check on `threads` tells the two processes apart
+        # only while this process does not itself run with 3 threads
         withenv("JULIA_NUM_THREADS" => "3") do
             open(output, "w") do io
                 redirect_stdout(io) do
