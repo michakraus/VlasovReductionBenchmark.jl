@@ -26,7 +26,7 @@ short_case() = VlasovCase("linear_landau", maxwellian, 0.01, 0.5, 1.0)
     for c in (linear_landau(0.02), nonlinear_landau(), two_stream())
         f = initial_condition(c, x, v)
         @test size(f) == (32, 64)
-        # the closed forms of the decisions, at every node
+        # the closed form of each case, at every node
         g = c.name == "two_stream" ? v .^ 2 .* exp.(-v .^ 2 ./ 2) ./ sqrt(2π) :
             exp.(-v .^ 2 ./ 2) ./ sqrt(2π)
         @test f ≈ (1 .+ c.α .* cos.(0.5 .* x)) .* g' rtol=1e-14
@@ -94,13 +94,14 @@ end
     # Σ φ_i e^{-ikx_i} = 6 - 3i + 0 + 3i = 6, so |E₁| = k (2/4) 6 = 1.5
     @test d.E1 ≈ 1.5 rtol=1e-14
     @test d.l2 ≈ sqrt(30hx) rtol=1e-14
-    # f vanishes at x = π, so two nodes are skipped by the entropy and counted
+    # f vanishes at x = 2π, so two nodes are skipped by the entropy and counted
     @test d.nonpositive == 2
     @test d.entropy ≈ -14hx * log(2) rtol=1e-14
 end
 
 @testset "Settings of the two modes" begin
-    # the decided grids, fit windows and tolerances; this file runs only the smoke mode
+    # the grids, fit windows and tolerances of both modes, and the settings of every run, as
+    # the benchmark fixes them; this file runs only the smoke mode
     @test VlasovReductionBenchmark.FULL_MODE ==
           (grid = (64, 128), landau_window = (0.0, 40.0), landau_rtol = 0.02,
         two_stream_rtol = 0.05)
@@ -232,7 +233,8 @@ end
                 @test eltype(read(f, "snapshots")) == Float64
 
                 # The series of the file at the snapshot steps, recomputed from the snapshots
-                # on the grid of the decisions, with φ from PoissonSolvers' own solve.
+                # on the 32 × 64 grid, written out here rather than taken from `grid`, with φ
+                # from PoissonSolvers' own solve.
                 k, nx, nv = attrs(f)["k"], 32, 64
                 L = 2π / k
                 x, hx, hv = (0:(nx - 1)) .* (L / nx), L / nx, 12 / (nv - 1)
