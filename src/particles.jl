@@ -10,6 +10,14 @@ const PARTICLE_FULL_MODE = (particles = 4096, train_particles = 256, tend = 40.0
 const PARTICLE_SMOKE_MODE = (particles = 512, train_particles = 64, tend = 10.0,
     latent_dims = (4, 8), steps = 100, seeds = (42,))
 
+"""
+    particle_mode(smoke)
+
+The settings of the particle half: [`PARTICLE_SMOKE_MODE`](@ref) with `smoke`, else
+[`PARTICLE_FULL_MODE`](@ref).
+"""
+particle_mode(smoke::Bool) = smoke ? PARTICLE_SMOKE_MODE : PARTICLE_FULL_MODE
+
 "The largest relative drift of the energy of the PIC run that the script accepts."
 const PIC_ENERGY_TOLERANCE = 1e-3
 
@@ -252,18 +260,35 @@ function charbonnier_relative(Ẑ, Z; ε = 1e-3)
 end
 
 """
+    training_step!(ps, optimizer, loss)
+
+One `optimization_step!` of `optimizer` on the network parameters `ps` along the Zygote gradient
+of `loss`. It returns `true`, or `false` with `ps` unchanged when the loss or an entry of its
+gradient is not finite: `FactoredStiefelAdam` refuses such a gradient with an `ArgumentError`.
+"""
+function training_step!(ps, optimizer, loss)
+    l, gradient = Zygote.withgradient(loss, ps)
+    finite = isfinite(l) &&
+             all(layer -> all(a -> all(isfinite, a), values(layer)), gradient[1])
+    finite && optimization_step!(ps, optimizer, gradient[1])
+
+    return finite
+end
+
+"""
     train_frontend(frontend, Z, n; seed, steps)
 
 Train `SymmetricSymplecticAutoencoder(M, 1, n; frontend)` on the snapshots `Z`, one flat vector
 ``[q; p]`` of length ``2M`` per column, from `NeuralNetwork(…; rng = Xoshiro(seed))`: `steps`
-steps of the gradient of [`charbonnier_relative`](@ref) by Zygote, applied by
-`optimization_step!` with `CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam())`
-at step size [`TRAINING_STEP_SIZE`](@ref).
+[`training_step!`](@ref)s on the gradient of [`charbonnier_relative`](@ref), with
+`CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam())` at step size
+[`TRAINING_STEP_SIZE`](@ref).
 
 It returns the number `M` of `particles` it trained on, the relative reconstruction error
-``\\|Ẑ - Z\\|_F / \\|Z\\|_F`` after the training, the `status`, and the wall time per step, the
-compilation of the first step included. A non-finite loss after `s` steps ends the training
-with status `"failed at step s"`, and the error is that of the network after those `s` steps.
+``\\|Ẑ - Z\\|_F / \\|Z\\|_F`` after the training, the `status`, and the wall time per step
+taken, the compilation of the first step included. A loss or a gradient that is not finite
+after `s` steps, or a loss that is not finite after the last step, ends the training with
+status `"failed at step s"`, and the error is that of the network after those `s` steps.
 """
 function train_frontend(frontend::Symbol, Z::AbstractMatrix, n::Integer; seed::Integer,
         steps::Integer)
@@ -276,22 +301,14 @@ function train_frontend(frontend::Symbol, Z::AbstractMatrix, n::Integer; seed::I
         linesearch = TRAINING_STEP_SIZE)
     loss(p) = charbonnier_relative(nn.model(Z, p), Z)
 
-    status = "ok"
-    elapsed = @elapsed for s in 0:steps
-        if s < steps
-            l, gradient = Zygote.withgradient(loss, ps)
-        else
-            l = loss(ps)
-        end
-        if !isfinite(l)
-            status = "failed at step $s"
-            break
-        end
-        s < steps && optimization_step!(ps, optimizer, gradient[1])
+    taken = 0
+    elapsed = @elapsed while taken < steps && training_step!(ps, optimizer, loss)
+        taken += 1
     end
+    status = taken == steps && isfinite(loss(ps)) ? "ok" : "failed at step $taken"
+
     return (particles = M, relative_error = norm(nn.model(Z, ps) .- Z) / norm(Z),
-        status = status,
-        seconds_per_step = elapsed / max(steps, 1))
+        status = status, seconds_per_step = elapsed / max(taken, 1))
 end
 
 """
@@ -393,6 +410,18 @@ function particle_cost(results_dir::AbstractString, M::Integer; steps::Integer =
     return path
 end
 
+"""
+    failed_runs(rows)
+
+The number of training runs among the rows of [`frontend_rows`](@ref) whose status is not
+`"ok"`, and the number of training runs; the rows of the POD baseline are no training runs.
+"""
+function failed_runs(rows)
+    trained = filter(r -> r.method != "pod", rows)
+
+    return count(r -> r.status != "ok", trained), length(trained)
+end
+
 "Write the rows `rows`, `NamedTuple`s with the same keys, to the CSV file `path`."
 function write_csv(path::AbstractString, rows)
     open(path, "w") do io
@@ -419,7 +448,7 @@ failed training runs printed; and the cost per step of [`particle_cost`](@ref).
 """
 function run_particles(; runs_dir::AbstractString, results_dir::AbstractString,
         smoke::Bool = false)
-    mode = smoke ? PARTICLE_SMOKE_MODE : PARTICLE_FULL_MODE
+    mode = particle_mode(smoke)
     M = mode.particles
     @printf("PIC run of nonlinear Landau damping with %d particles over [0, %g]%s\n", M,
         mode.tend, smoke ? " (smoke)" : "")
@@ -443,9 +472,7 @@ function run_particles(; runs_dir::AbstractString, results_dir::AbstractString,
         train_particles = mode.train_particles, latent_dims = mode.latent_dims,
         seeds = mode.seeds, steps = mode.steps)
     write_csv(joinpath(results_dir, "particle_frontends.csv"), rows)
-    trained = filter(r -> r.method != "pod", rows)
-    @printf("%d of %d training runs failed\n", count(r -> r.status != "ok", trained),
-        length(trained))
+    @printf("%d of %d training runs failed\n", failed_runs(rows)...)
     flush(stdout)
 
     particle_cost(results_dir, M)

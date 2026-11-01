@@ -44,6 +44,20 @@ fitted rate misses the dispersion relation.
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group and its full mode in
-the `slow` group, and both modes of `scripts/particles.jl` in the `slow` group; `Pkg.test()` runs
-both groups.
+The suite runs the script's smoke mode in the `core` group and its full mode in the `slow` group;
+`Pkg.test()` runs both.
+
+## The particle half
+
+```sh
+julia --project scripts/particles.jl --runs-dir runs --results-dir results
+```
+
+A PIC run of nonlinear Landau damping with 4096 particles over $[0, 40]$, the POD mode counts of
+its labelled and sorted snapshots, and the training of the `:sort`, `:slot` and `:pairwise`
+frontends of `SymmetricSymplecticAutoencoder` on 256 of its particles. The script writes the run
+to `runs/particles_nonlinear_landau.h5`, and `particle_pod_modes.csv`, `particle_frontends.csv`
+and `particle_cost.toml` to `results/`. It stops with an error when the energy of the run drifts
+by more than $10^{-3}$ relative. `--smoke` runs 512 particles over $[0, 10]$ and trains on 64 of
+them. The test suite runs the smoke mode in the `slow` group; the full mode trains for hours, so
+it is this script run and no test.

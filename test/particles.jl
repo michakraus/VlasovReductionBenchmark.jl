@@ -3,8 +3,12 @@ using LinearAlgebra: norm, svdvals
 using Random: Xoshiro, randperm
 using Test
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: charbonnier_relative, check_pic_energy, frontend_rows,
-                                inverse_cdf, particle_E1, train_subsample, wrap_position
+using VlasovReductionBenchmark: charbonnier_relative, check_pic_energy, failed_runs,
+                                frontend_rows, inverse_cdf, particle_E1, particle_mode,
+                                train_subsample, training_step!, wrap_position
+using VlasovReductionBenchmark: Adam, CompositeMethod, FactoredStiefelAdam, NeuralNetwork,
+                                SymmetricSymplecticAutoencoder, TrainingOptimizer,
+                                Zygote, optimization_step!
 
 include("helpers/thrown.jl")
 
@@ -27,6 +31,13 @@ const L = 4π
         @test sample_particles(M, 0.5, 0.5) == (x, v, w)
     end
     @test sample_particles(64, 0.5, 0.5; seed = 43)[1] != sample_particles(64, 0.5, 0.5)[1]
+    # the decided draw: from one Xoshiro(42), first the M positions, then the M velocities
+    rng = Xoshiro(42)
+    u = [rand(rng) for _ in 1:512]
+    z = randn(rng, 512)
+    x, v, _ = sample_particles(512, 0.5, 0.5)
+    @test x == inverse_cdf.(u, 0.5, 0.5)
+    @test v == z
 
     # the inverse of the CDF (x + α sin(kx)/k)/L of the density
     F(x) = (x + 0.5 * sin(0.5x) / 0.5) / L
@@ -233,6 +244,76 @@ end
     failed = train_frontend(:sort, Zbad, 4; seed = 42, steps = 5)
     @test failed.status == "failed at step 0"
     @test isnan(failed.relative_error)
+    # with no step to take, the loss after the last step is checked
+    @test train_frontend(:sort, Zbad, 4; seed = 42, steps = 0).status == "failed at step 0"
+    # the time per step divides by the steps taken: both runs stop after one failed gradient,
+    # so a division by the 50 planned steps would give a time 50 times smaller (the fastest
+    # of five runs each, so that the noise of the machine stays far below that factor)
+    fastest(steps) = minimum(
+        train_frontend(:sort, Zbad, 4; seed = 42, steps).seconds_per_step for _ in 1:5)
+    @test fastest(50) > fastest(1) / 5
+
+    # the network: the frontend and the latent dimension n, seeded by `seed`
+    relative_error(nn) = norm(nn.model(Z, nn.params) .- Z) / norm(Z)
+    for fe in (:sort, :slot, :pairwise), n in (4, 8)
+
+        nn = NeuralNetwork(SymmetricSymplecticAutoencoder(M, 1, n; frontend = fe), Float64;
+            rng = Xoshiro(42))
+        @test train_frontend(fe, Z, n; seed = 42, steps = 0).relative_error ≈
+              relative_error(nn) rtol=1e-12
+    end
+    @test allunique([train_frontend(fe, Z, 4; seed = 42, steps = 0).relative_error
+                     for fe in (:sort, :slot, :pairwise)])
+
+    # one step: FactoredStiefelAdam and Adam at the step size 1e-3, on the gradient of the
+    # Charbonnier relative error
+    nn = NeuralNetwork(SymmetricSymplecticAutoencoder(M, 1, 4; frontend = :slot), Float64;
+        rng = Xoshiro(42))
+    optimizer = TrainingOptimizer(nn.params;
+        algorithm = CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam()),
+        linesearch = 1e-3)
+    before = relative_error(nn)
+    gradient = Zygote.gradient(p -> charbonnier_relative(nn.model(Z, p), Z), nn.params)[1]
+    optimization_step!(nn.params, optimizer, gradient)
+    @test relative_error(nn) != before
+    @test train_frontend(:slot, Z, 4; seed = 42, steps = 1).relative_error ≈
+          relative_error(nn) rtol=1e-12
+end
+
+@testset "One training step" begin
+    rng = Xoshiro(7)
+    M, B = 8, 6
+    Z = vcat(sort(rand(rng, M, B) .* L; dims = 1), randn(rng, M, B))
+    nn = NeuralNetwork(SymmetricSymplecticAutoencoder(M, 1, 4; frontend = :sort), Float64;
+        rng = Xoshiro(42))
+    optimizer = TrainingOptimizer(nn.params;
+        algorithm = CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam()),
+        linesearch = 1e-3)
+    loss(p) = charbonnier_relative(nn.model(Z, p), Z)
+    l₀ = loss(nn.params)
+
+    # a finite loss whose gradient is not finite: d/dw √|w - c| at w = c
+    c = nn.params.L1.weight[1, 1]
+    singular(p) = loss(p) + sqrt(abs(p.L1.weight[1, 1] - c))
+    @test isfinite(singular(nn.params))
+    @test training_step!(nn.params, optimizer, singular) == false
+    @test loss(nn.params) == l₀
+
+    # a non-finite loss
+    @test training_step!(nn.params, optimizer, p -> loss(p) + NaN) == false
+    @test loss(nn.params) == l₀
+
+    # a finite loss and gradient: the step moves the parameters
+    @test training_step!(nn.params, optimizer, loss) == true
+    @test loss(nn.params) != l₀
+end
+
+@testset "Count of the failed training runs" begin
+    rows = [
+        (method = "sort", status = "ok"), (method = "slot", status = "failed at step 3"),
+        (method = "pairwise", status = "failed at step 0"), (method = "pod", status = "ok")]
+    @test failed_runs(rows) == (2, 3)
+    @test failed_runs(rows[[1, 4]]) == (0, 1)
 end
 
 @testset "Rows of the frontends" begin
@@ -284,4 +365,7 @@ end
           (particles = 512, train_particles = 64, tend = 10.0, latent_dims = (4, 8),
         steps = 100, seeds = (42,))
     @test VlasovReductionBenchmark.PIC_ENERGY_TOLERANCE == 1e-3
+    # the script's full mode is the full settings, and `--smoke` the smoke settings
+    @test particle_mode(false) == VlasovReductionBenchmark.PARTICLE_FULL_MODE
+    @test particle_mode(true) == VlasovReductionBenchmark.PARTICLE_SMOKE_MODE
 end

@@ -13,5 +13,4 @@ end
 if "slow" in GROUPS
     @safetestset "Full-order script, full mode" include("integration/full_order_script.jl")
     @safetestset "Particle script, smoke mode" include("integration/particles_smoke.jl")
-    @safetestset "Particle script, full mode" include("integration/particles_script.jl")
 end

@@ -48,3 +48,14 @@
   VlasovMethods.
 - **kind:** upstream
 - **found:** 2026-10-31
+
+### K5 · The 99.99 % POD mode count of the particle snapshots reaches the number of snapshots for labelled and for sorted snapshots, so that column does not separate the two.
+
+- **location:** `src/particles.jl:37`
+- **evidence:** the smoke run of `scripts/particles.jl` (512 particles, 21 snapshots over
+  `[0, 10]`) writes to `particle_pod_modes.csv` `labelled,512,0.9999,21` and
+  `sorted,512,0.9999,21`: both counts equal the number of snapshots, the largest count that the
+  snapshot matrix allows. At 99 % the counts differ, 13 labelled against 11 sorted. The
+  thresholds are the plan's (99 % and 99.99 %).
+- **kind:** found late
+- **found:** 2026-11-01

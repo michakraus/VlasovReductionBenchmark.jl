@@ -41,7 +41,8 @@ so `[Unreleased]` has no target version.
   256 particles of smallest initial position (smoke: 64) at $n \in \{4, 8, 16, 32\}$
   (smoke: $\{4, 8\}$), for 2000 steps (smoke: 100) at seeds 42, 43 and 44 (smoke: 42), with
   a Charbonnier relative loss, `FactoredStiefelAdam`/`Adam` at step size $10^{-3}$. A run
-  whose loss is not finite is marked `failed at step <s>`. `<r>/particle_cost.toml` gives the
-  wall time per PIC step of a `run!` of 100 steps in a fresh process, with the HDF5 write of each
-  step included. The test suite runs both modes of the script in the `slow` group. The training
-  takes GeometricMachineLearning from its `main` through `[sources]`.
+  whose loss or gradient is not finite is marked `failed at step <s>`, and the script prints the
+  count of such runs. `<r>/particle_cost.toml` gives the wall time per PIC step of a `run!` of
+  100 steps in a fresh process, with the HDF5 write of each step included. The test suite runs
+  the smoke mode of the script in the `slow` group; the full mode is a script run, outside the
+  suite. The training takes GeometricMachineLearning from its `main` through `[sources]`.

@@ -3,8 +3,10 @@
 
 The 1D1V Vlasov–Poisson benchmark of reduced models: the test cases, the full-order runs of
 VlasovMethods' grid scheme that produce their data, and the dispersion-relation oracle of their
-linear rates; and the particle half: a PIC run of nonlinear Landau damping, the POD mode counts
-of its labelled and sorted snapshots, and the particle frontends of GeometricMachineLearning's
+linear rates.
+
+The particle half: a PIC run of nonlinear Landau damping, the POD mode counts of its labelled
+and sorted snapshots, and the particle frontends of GeometricMachineLearning's
 `SymmetricSymplecticAutoencoder` trained on them.
 """
 module VlasovReductionBenchmark
@@ -17,15 +19,17 @@ using GeometricMachineLearning: SymmetricSymplecticAutoencoder
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!
 using HDF5: attrs, h5open
-using LinearAlgebra: dot, norm, svdvals
-using PoissonSolvers: FFTWBasis, PeriodicBasisSpline, Potential
+using LinearAlgebra: dot
+using LinearAlgebra: norm, svdvals
+using PoissonSolvers: FFTWBasis, Potential
+using PoissonSolvers: PeriodicBasisSpline
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
 using Random: Xoshiro
 using SpecialFunctions: erfcx
 using TOML: TOML
-using VlasovMethods: VlasovMethods, GridDistribution, ParticleDistribution, SplittingMethod,
-                     VlasovPoisson, run!
+using VlasovMethods: VlasovMethods, GridDistribution, VlasovPoisson
+using VlasovMethods: ParticleDistribution, SplittingMethod, run!
 using Zygote: Zygote
 
 "The velocity interval ``[v_a, v_b]`` of every grid."
