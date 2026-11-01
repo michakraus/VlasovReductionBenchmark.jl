@@ -562,13 +562,15 @@ The untied and the weight-tied autoencoder of the full-order runs in `runs_dir`,
 For each run of [`DATA_RUNS`](@ref), each network of [`NETWORKS`](@ref), each `n` and each
 seed it trains the network on the run's fluctuation snapshots around the background of its
 first snapshot, integrates the [`ManifoldGalerkinField`](@ref) over the run's time span and
-writes a [`data_row`](@ref) with the seed, the loss before the first training step (after Stage
-I for the weight-tied network) and after the last step, and the time of the build and the
-training as the offline cost. For the amplitude sweep it
-trains on the three training runs together, around the background of the first, and writes
-the largest relative error at each test amplitude. A training that fails, whose loss becomes
-non-finite or does not fall (see [`train_network!`](@ref)), is a row with its status and empty
-metrics, as is a reduced run that stops; the other rows go on. The online cost of each data row that completes comes from [`autoencoder_costs`](@ref).
+writes a [`data_row`](@ref) with the seed, the loss `loss_stage_I` before the first training
+step (for the weight-tied network, after the `solve!` of its bases and its lift) and the loss
+`loss_final` after the last step, and the time of the build and the training as the offline
+cost. For the amplitude sweep it trains on the three training runs together, around the
+background of the first, and writes the largest relative error at each test amplitude. A
+training that fails, whose loss becomes non-finite or does not fall (see
+[`train_network!`](@ref)), is a row with its status and empty metrics, as is a reduced run that
+stops; the other rows go on. The online cost of each data row that completes comes from
+[`autoencoder_costs`](@ref).
 
 It writes `<results_dir>/autoencoders.csv`, and the [`canonical_flow_comparison`](@ref) of the
 first snapshot of the linear Landau run to `<results_dir>/autoencoders_hamiltonian.toml`,

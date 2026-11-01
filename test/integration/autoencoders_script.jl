@@ -96,7 +96,7 @@ end
         @test all(r -> r[col("status")] == "ok", rows)
         @test occursin("$(length(rows)) rows, 0 failed", printed)
         for r in rows
-            # the training moved: its last loss is below its loss after Stage I
+            # the training moved: its last loss is below its loss before the first step
             @test parse(Float64, r[col("loss_final")]) <
                   parse(Float64, r[col("loss_stage_I")])
             @test parse(Float64, r[col("offline_seconds")]) > 0

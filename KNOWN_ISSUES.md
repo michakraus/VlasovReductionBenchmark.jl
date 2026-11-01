@@ -111,9 +111,9 @@
 - **evidence:** `canonical_flow_comparison` divides the norm of the canonical flow of the
   discrete energy by the norm of the Arakawa field. The gradient of the energy carries the cell
   area `h_x h_v` and the field does not, so the ratio changes with the grid: for linear Landau at
-  `t = 0` it is 662.7 on 32 × 64 and 159.5 on 64 × 128 (the round-1 critic review of this
-  branch). `autoencoders_hamiltonian.toml` writes `nx` and `nv` beside the ratio, so only
-  ratios of one grid compare.
+  `t = 0`, `canonical_flow_comparison(case, initial_condition(case, grid(case, nx, nv)...))`
+  gives 662.7 on 32 × 64 and 159.5 on 64 × 128. `autoencoders_hamiltonian.toml` writes `nx` and
+  `nv` beside the ratio, so only ratios of one grid compare.
 - **kind:** not verified
 - **found:** 2026-11-01
 
@@ -144,7 +144,7 @@
 
 ### K13 · The memory of the full mode of `scripts/autoencoders.jl` is not measured.
 
-- **location:** `src/autoencoders.jl:593`
+- **location:** `src/autoencoders.jl:595`
 - **evidence:** `run_autoencoders` keeps every trained reduction in `specs` until
   `autoencoder_costs` serializes them all for the fresh timing process. Each untied reduction
   holds its lift and its `Q` factor, two `8192 × 128` `Float64` matrices of 8 MiB each on
