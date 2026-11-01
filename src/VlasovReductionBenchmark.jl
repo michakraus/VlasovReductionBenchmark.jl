@@ -12,10 +12,11 @@ using GeometricEquations: ODEProblem, functions, parameters
 using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
 using HDF5: attrs, h5open
-using LinearAlgebra: dot, mul!, norm
+using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd
 using PoissonSolvers: FFTWBasis, Potential
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
+using Random: Xoshiro
 using ReducedBasisMethods: CotangentLiftSVD, PODSVD, ReducedBasis
 using ReducedComplexityModeling: Parameter, ParameterSpace
 using SimpleSolvers: NonlinearSolverException, isconverged, status
@@ -33,6 +34,7 @@ include("parity.jl")
 include("metrics.jl")
 include("reduction.jl")
 include("linear_baselines.jl")
+include("dlra.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -45,5 +47,7 @@ export check_pod_optimality, checked_projection_errors, decode, encode, full_ord
        galerkin_field, pod_reduction, psd_basis, psd_reduction, relative_projection_error,
        run_reduced
 export run_linear_baselines
+export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra,
+       run_dlra_benchmark, run_full_rank
 
 end

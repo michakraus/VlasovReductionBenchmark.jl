@@ -55,6 +55,34 @@ end in `_fluct`), and the online cost per reduced step, measured in a fresh proc
 `results/linear_baselines_cost.toml`. It stops with an error when the POD projection error rises
 with $n$ or exceeds the PSD error.
 
+## The DLRA solver
+
+```sh
+julia --project scripts/dlra.jl --runs-dir runs --results-dir results
+```
+
+A dynamical low-rank solver integrates the factored state $f = f_0 + X S V^{\mathsf T}$ of rank
+$r \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), with $X$ and $V$
+orthonormal in the inner products weighted by $h_x$ and $h_v$. Each step is the BUG step with
+augmented bases (K-step, L-step, then the Galerkin S-step on the bases of up to $2r$ columns),
+truncated back to rank $r$; each substep is one RK4 step. The discretisation is spectral in $x$
+and centred differences in $v$, periodic in $v$, with the same Poisson solve as the full-order
+runs. The time step is 0.025, half the full-order step, because RK4 with the spectral derivative
+is unstable at 0.05 on $64 \times 128$. The solver does not conserve the mass exactly; the drift
+is written, not asserted.
+
+Before it measures, the script checks the solver. At full rank in $x$ it agrees with a full-rank
+solver of the same discretisation to $10^{-10}$ over 20 steps on $32 \times 64$, and the
+full-rank solver and the run of rank 16 meet the rate check of linear Landau damping (2 % over
+$[0, 40]$ on $64 \times 128$; `--smoke`: 10 % over $[0, 25]$ on $32 \times 64$). It writes one row
+per case and rank, and per test amplitude of the sweep and rank, to `results/dlra.csv`, with the
+metrics of the linear baselines against the full-order runs, the state size
+$r(N_x + N_v) + r^2$, the error of the full-rank solver against the same full-order run (the
+difference of the two discretisations), and the online cost per DLRA step, measured in a fresh
+process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the cost of one DLRA
+step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
+is twice the ratio. The column `n` holds the rank $r$.
+
 ## Tests
 
 ```sh
@@ -63,4 +91,5 @@ julia --project -e 'using Pkg; Pkg.test()'
 
 The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group, and its full mode,
 the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the Galerkin models in
-the `slow` group; `Pkg.test()` runs both.
+the `slow` group; `Pkg.test()` runs both. The checks of the DLRA solver run in the `core` group,
+and the smoke and the full mode of `scripts/dlra.jl` in the `slow` group.
