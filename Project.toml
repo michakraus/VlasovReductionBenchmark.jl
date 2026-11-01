@@ -4,45 +4,61 @@ version = "0.1.0"
 authors = ["Michael Kraus"]
 
 [deps]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GeometricBase = "9a0b12b7-583b-4f04-aa1f-d8551b6addc9"
 GeometricEquations = "c85262ba-a08a-430a-b926-d29770767bf2"
 GeometricIntegrators = "dcce2d33-59f6-5b8d-9047-0defad88ae06"
 GeometricIntegratorsBase = "71212ab4-08a2-48eb-a02b-4cbad0e9c44a"
+GeometricMachineLearning = "194d25b2-d3f5-49f0-af24-c124f4aa80cc"
+GeometricOptimizers = "fc236c15-5557-4942-aa65-b650f329279e"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PoissonSolvers = "8f9e8900-be71-40de-a258-603fdc860a2d"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 ReducedBasisMethods = "91da5cd7-58ae-4d67-87db-f03d1c8da121"
 ReducedComplexityModeling = "abb4722c-1d8e-48eb-a3bd-45b3116bfaba"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 SimpleSolvers = "36b790f5-6434-4fbe-b711-1f64a1e2f6a2"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 VlasovMethods = "4a954452-39e6-424b-ae51-38fc4bbc42ef"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
 # No registered VlasovMethods binds ReducedComplexityModeling 0.5, which its `main` does.
 VlasovMethods = {url = "https://github.com/JuliaPlasma/VlasovMethods.jl", rev = "main"}
+# The `main` of GeometricMachineLearning, which holds the multi-modal autoencoder.
+GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "main"}
 
 [compat]
+# the Jacobian of a decoder
+ForwardDiff = "1"
 # the floor of VlasovMethods
 GeometricBase = "0.15.1"
 GeometricEquations = "0.21.5"
 GeometricIntegrators = "0.18.6"
 # the floor of GeometricIntegrators 0.18.6
 GeometricIntegratorsBase = "0.6.9"
+GeometricMachineLearning = "0.9"
+# the floor of GeometricMachineLearning 0.9.0
+GeometricOptimizers = "0.9.2"
 HDF5 = "0.17"
 LinearAlgebra = "1"
 PoissonSolvers = "0.6"
 Printf = "1"
 QuadGK = "2.11"
+Random = "1"
 # 0.4 is the first that binds ReducedComplexityModeling 0.5, as VlasovMethods' `main` does.
 ReducedBasisMethods = "0.4"
 # `ParameterSpace`, which every `ReducedBasis` holds.
 ReducedComplexityModeling = "0.5"
+Serialization = "1"
 # `status` and `isconverged`, which tell whether the nonlinear solve of a step converged
 SimpleSolvers = "0.14.1"
 SpecialFunctions = "2"
 TOML = "1"
 VlasovMethods = "0.3"
+Zygote = "0.7"
 julia = "1.12"

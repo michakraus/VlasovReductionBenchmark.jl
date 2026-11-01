@@ -10,10 +10,13 @@ if "core" in GROUPS
     @safetestset "Parity split" include("parity.jl")
     @safetestset "Metrics" include("metrics.jl")
     @safetestset "POD and PSD reduction" include("reduction.jl")
+    @safetestset "Autoencoders" include("autoencoders.jl")
 end
 
 if "slow" in GROUPS
     @safetestset "Full-order script, full mode" include("integration/full_order_script.jl")
     @safetestset "Galerkin oracles" include("verification/galerkin_oracles.jl")
     @safetestset "Linear baselines script, smoke mode" include("integration/linear_baselines_script.jl")
+    @safetestset "Autoencoder oracles" include("verification/autoencoder_oracles.jl")
+    @safetestset "Autoencoders script, smoke mode" include("integration/autoencoders_script.jl")
 end
