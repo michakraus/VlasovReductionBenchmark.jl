@@ -44,5 +44,6 @@ fitted rate misses the dispersion relation.
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-The suite runs the script's smoke mode in the `core` group and its full mode in the `slow` group;
-`Pkg.test()` runs both.
+The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group and its full mode in
+the `slow` group, and both modes of `scripts/particles.jl` in the `slow` group; `Pkg.test()` runs
+both groups.
