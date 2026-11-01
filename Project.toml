@@ -29,7 +29,8 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 [sources]
 # No registered VlasovMethods binds ReducedComplexityModeling 0.5, which its `main` does.
 VlasovMethods = {url = "https://github.com/JuliaPlasma/VlasovMethods.jl", rev = "main"}
-# The `main` of GeometricMachineLearning, which holds the multi-modal autoencoder.
+# The `main` of GeometricMachineLearning, which holds the multi-modal and the symmetric
+# particle autoencoders.
 GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "main"}
 
 [compat]

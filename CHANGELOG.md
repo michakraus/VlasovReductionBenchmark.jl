@@ -101,3 +101,25 @@ so `[Unreleased]` has no target version.
   blows up is a row with its status. The test suite runs the solver's
   checks in the `core` group, and the smoke and the full mode of the script in the `slow` group.
 - Random is a direct dependency, for the seeded completion of the initial bases.
+- `scripts/particles.jl --runs-dir <d> --results-dir <r> [--smoke]`: a PIC run of nonlinear Landau
+  damping ($\alpha = 0.5$, $k = 0.5$) with VlasovMethods' `SplittingMethod` on a periodic cubic
+  B-spline potential with 32 cells. It draws 4096 particles (smoke: 512) by inverse-CDF sampling
+  with `Xoshiro(42)` and steps them with $\Delta t = 0.05$ over $[0, 40]$ (smoke: $[0, 10]$). It
+  writes the wrapped positions and velocities every 0.5, the weights, $|E_1|$ at every step,
+  and the drifts of the energy and the momentum to `<d>/particles_nonlinear_landau.h5`. It asserts
+  the energy to $10^{-3}$ relative and prints the momentum drift without asserting it.
+- `<r>/particle_pod_modes.csv` gives the POD modes reaching 99 % and 99.99 % of the snapshot
+  energy, for the labelled and the position-sorted snapshots of all particles.
+  `<r>/particle_frontends.csv` gives the relative reconstruction error of
+  `SymmetricSymplecticAutoencoder` with the `:sort`, `:slot` and `:pairwise` frontends, beside
+  POD with $n$ modes of the same particles, sorted in each snapshot (`pod`) and with their labels
+  (`pod_labelled`). `--labelled-pod` writes the `pod_labelled` rows into an existing
+  `particle_frontends.csv` from the stored run, with no training. The frontends train on the
+  256 particles of smallest initial position (smoke: 64) at $n \in \{4, 8, 16, 32\}$
+  (smoke: $\{4, 8\}$), for 2000 steps (smoke: 100) at seeds 42, 43 and 44 (smoke: 42), with
+  a Charbonnier relative loss, `FactoredStiefelAdam`/`Adam` at step size $10^{-3}$. A run
+  whose loss or gradient is not finite is marked `failed at step <s>`, and the script prints the
+  count of such runs. `<r>/particle_cost.toml` gives the wall time per PIC step of a `run!` of
+  100 steps in a fresh process, with the HDF5 write of each step included. The test suite runs
+  the smoke mode of the script in the `slow` group; the full mode is a script run, outside the
+  suite. The training takes GeometricMachineLearning from its `main` through `[sources]`.

@@ -171,3 +171,76 @@
   the online cost is not measured.
 - **kind:** found late
 - **found:** 2026-11-01
+
+### K16 · The 99.99 % POD mode count of the particle snapshots reaches the number of snapshots for labelled and for sorted snapshots, so that column does not separate the two.
+
+- **location:** `src/particles.jl:37`
+- **evidence:** the smoke run of `scripts/particles.jl` (512 particles, 21 snapshots over
+  `[0, 10]`) writes to `particle_pod_modes.csv` `labelled,512,0.9999,21` and
+  `sorted,512,0.9999,21`: both counts equal the number of snapshots, the largest count that the
+  snapshot matrix allows. At 99 % the counts differ, 13 labelled against 11 sorted. The
+  thresholds are the plan's (99 % and 99.99 %).
+- **kind:** found late
+- **found:** 2026-11-01
+
+### K17 · No test reaches a training run of `train_frontend` that stops on a finite loss and a non-finite gradient.
+
+- **location:** `src/particles.jl:308`
+- **evidence:** the mutant `status = isfinite(loss(ps)) ? "ok" : "failed at step $taken"`, with
+  `taken == steps &&` dropped, survives the `particles.jl` test file: such a run then reports
+  `"ok"`, while the docstring of `train_frontend` gives `"failed at step s"`. On a non-finite
+  loss, the edge that the tests reach, the mutant is equivalent, because `loss(ps)` is
+  deterministic.
+- **kind:** missing test
+- **found:** 2026-11-01
+
+### K18 · No test reaches the full mode of `run_particles` or of `--labelled-pod`, so no test shows that either takes its settings from `particle_mode(smoke)`.
+
+- **location:** `src/particles.jl:499`
+- **evidence:** the core test checks `particle_mode(false) == PARTICLE_FULL_MODE` and
+  `particle_mode(true) == PARTICLE_SMOKE_MODE`, but no core test calls `run_particles`. The
+  mutant `mode = particle_mode(smoke)` → `mode = PARTICLE_FULL_MODE` survives
+  `test/particles.jl`; under it, the smoke test of the script runs the full mode for hours. In
+  `scripts/particles.jl:46`, the mutant that passes `smoke = true` to `add_labelled_pod` in place
+  of `smoke` survives `test/particles.jl` too, because its test of the script options calls
+  `main` only with `--smoke`. The full mode is the script run, outside the suite; the full-mode
+  runs of `scripts/particles.jl`, with and without `--labelled-pod`, went through both lines
+  and wrote rows of 256 particles. A test of the mode choice that does not run the full mode
+  needs a seam in `run_particles`, and the user asks for little effort on it.
+- **kind:** missing test
+- **found:** 2026-11-01
+
+### K19 · `add_labelled_pod` truncates `particle_frontends.csv` when the POD of the stored run throws.
+
+- **location:** `src/particles.jl:400`
+- **evidence:** `add_labelled_pod` opens the file with `"w"` and computes `labelled_pod_rows`
+  inside the `do` block, so an error of `pod_error` leaves the file with the kept rows only. A
+  stored smoke run whose velocities hold one `NaN` makes `svdvals` throw
+  `ArgumentError: invalid argument #4 to LAPACK call`; a file of 5 lines whose last row is
+  `pod_labelled` then has 4 lines, and the old `pod_labelled` row is lost. Computing the rows
+  before `open(path, "w")` closes it. A `pod_error` with `n` above the rank does not throw: it
+  returns `0.0`.
+- **kind:** defect
+- **found:** 2026-11-01
+
+### K20 · `run_pic` infers `Any` for most of its result fields.
+
+- **location:** `src/particles.jl:190`
+- **evidence:** VlasovMethods' `ParticleDistribution(1, 1, M)` does not infer a concrete type, so
+  `pic_method` returns a `SplittingMethod` that is not concrete, and the stored trajectory is read
+  with an untyped `h5open(f -> read(f, "z"), file)` (`src/particles.jl:197`). 7 of the 12 fields
+  of the result of `run_pic` infer `Any` on Julia 1.13. The time loop is `run!`, behind a function
+  barrier, so only the comprehensions over the about 801 stored steps dispatch at run time. The
+  HDF5 read takes a type assertion locally; the rest of the cause is upstream.
+- **kind:** upstream
+- **found:** 2026-11-01
+
+### K21 · The network of `train_frontend` is not of a concrete type.
+
+- **location:** `src/particles.jl:296`
+- **evidence:** `SymmetricSymplecticAutoencoder(M, 1, n; frontend)` takes the frontend as a
+  `Symbol` at run time, so the type of the network depends on a value, and each training step
+  dispatches once at `training_step!`, in front of the Zygote gradient that dominates its cost.
+  The cause is GeometricMachineLearning's API, which selects the frontend by `Symbol`.
+- **kind:** upstream
+- **found:** 2026-11-01

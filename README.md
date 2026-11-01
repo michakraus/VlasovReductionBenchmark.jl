@@ -104,6 +104,24 @@ process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the
 step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
 is twice the ratio. The column `n` holds the rank $r$.
 
+## The particle half
+
+```sh
+julia --project scripts/particles.jl --runs-dir runs --results-dir results
+```
+
+A PIC run of nonlinear Landau damping with 4096 particles over $[0, 40]$, the POD mode counts of
+its labelled and sorted snapshots, and the training of the `:sort`, `:slot` and `:pairwise`
+frontends of `SymmetricSymplecticAutoencoder` on 256 of its particles. The script writes the run
+to `runs/particles_nonlinear_landau.h5`, and `particle_pod_modes.csv`, `particle_frontends.csv`
+and `particle_cost.toml` to `results/`. It stops with an error when the energy of the run drifts
+by more than $10^{-3}$ relative. `--smoke` runs 512 particles over $[0, 10]$ and trains on 64 of
+them. `particle_frontends.csv` sets each frontend beside two POD baselines of the same particles:
+`pod`, of the snapshots sorted by position at each time, and `pod_labelled`, of the snapshots with
+their labels, which the frontends train on. `--labelled-pod` runs nothing and trains nothing: it
+writes the `pod_labelled` rows into the `particle_frontends.csv` of `--results-dir` from the run
+stored in `--runs-dir`, and leaves the other rows as they are.
+
 ## Tests
 
 ```sh
@@ -115,4 +133,6 @@ the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the
 the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
 `scripts/autoencoders.jl` and the checks of the two networks; its full mode is a script run and
 no test. The checks of the DLRA solver run in the `core` group, and the smoke and the full mode of
-`scripts/dlra.jl` in the `slow` group.
+`scripts/dlra.jl` in the `slow` group. The `slow` group also runs the smoke mode of
+`scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
+half* and no test.

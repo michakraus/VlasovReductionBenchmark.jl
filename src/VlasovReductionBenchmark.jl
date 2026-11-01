@@ -5,6 +5,10 @@ The 1D1V Vlasov–Poisson benchmark of reduced models: the test cases, the full-
 VlasovMethods' grid scheme that produce their data, the dispersion-relation oracle of their
 linear rates, and the POD and PSD Galerkin baselines with their metrics.
 It also holds the two symplectic autoencoders and their manifold Galerkin models.
+
+The particle half: a PIC run of nonlinear Landau damping, the POD mode counts of its labelled
+and sorted snapshots, and the particle frontends of GeometricMachineLearning's
+`SymmetricSymplecticAutoencoder` trained on them.
 """
 module VlasovReductionBenchmark
 
@@ -15,13 +19,14 @@ using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
 using GeometricMachineLearning: GeometricMachineLearning, BilinearStiefelLayer, CPU,
                                 CharbonnierRelativeLoss, MultiModalSymplecticAutoencoder,
-                                NeuralNetwork, PSDArch, SymplecticAutoencoder,
-                                WeightTiedSymplecticAutoencoder
+                                NeuralNetwork, PSDArch, SymmetricSymplecticAutoencoder,
+                                SymplecticAutoencoder, WeightTiedSymplecticAutoencoder
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!, solve!
 using HDF5: attrs, h5open
 using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd, svdvals
 using PoissonSolvers: FFTWBasis, Potential
+using PoissonSolvers: PeriodicBasisSpline
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
 using Random: Xoshiro
@@ -32,6 +37,7 @@ using SimpleSolvers: NonlinearSolverException, isconverged, status
 using SpecialFunctions: erfcx
 using TOML: TOML
 using VlasovMethods: VlasovMethods, GridDistribution, VlasovPoisson
+using VlasovMethods: ParticleDistribution, SplittingMethod, run!
 using Zygote: Zygote
 
 "The velocity interval ``[v_a, v_b]`` of every grid."
@@ -46,6 +52,7 @@ include("reduction.jl")
 include("linear_baselines.jl")
 include("autoencoders.jl")
 include("dlra.jl")
+include("particles.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -62,5 +69,7 @@ export AutoencoderReduction, ManifoldGalerkinField, canonical_flow_comparison,
        decoder_jacobian, run_autoencoders, train_untied, train_weight_tied
 export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra,
        run_dlra_benchmark, run_full_rank
+export pod_error, pod_modes, run_particles, run_pic, sample_particles, sorted_snapshots,
+       train_frontend, write_particle_run
 
 end
