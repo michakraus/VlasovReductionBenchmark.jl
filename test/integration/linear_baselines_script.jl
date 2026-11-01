@@ -1,8 +1,8 @@
 using LinearAlgebra: svd
 using TOML
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: GridCoordinates, LinearReduction, csv_field, read_run,
-                                reduced_rate
+using VlasovReductionBenchmark: GridCoordinates, LinearReduction, ParityCoordinates,
+                                csv_field, read_run, reduced_rate
 using Test
 
 include("../helpers/thrown.jl")
@@ -150,6 +150,8 @@ end
             end
             @test (r[col("rate")] == "") == (rate_status != "ok")
         end
+        # each data row holds the build time of its own method and n
+        @test allunique([r[col("offline_seconds")] for r in data])
         @test occursin("$(length(rows)) rows, $nfailed failed", printed)
         # every reduced run of the smoke mode completes (measured)
         @test nfailed == 0
@@ -218,6 +220,20 @@ end
             32, 64, test.snapshots[:, :, 1])
         r = row("sweep", "POD", "0.03", "4")
         # the two bases differ by the round-off of two SVDs
+        @test value(r, "l2_error_max") ≈
+              maximum(relative_l2_errors(reduced.snapshots, test.snapshots)) rtol=1e-8
+        @test value(r, "max_l2_error_fluct") ≈
+              maximum(relative_l2_errors(reduced.snapshots, test.snapshots,
+            background(test.snapshots[:, :, 1]))) rtol=1e-8
+        # the same for PSD at n = 8: Φ the 4 leading left singular vectors of [Q P] of the
+        # training fluctuations; the maximum of this row's error is not at its first snapshot
+        W = reduce(hcat, [parity_snapshots(T, f0) for T in train])
+        N = size(W, 1) ÷ 2
+        Φ = svd([W[1:N, :] W[(N + 1):end, :]]).U[:, 1:4]
+        reduced = run_reduced(
+            LinearReduction(ParityCoordinates(), [Φ zero(Φ); zero(Φ) Φ], f0, 32, 64),
+            test.case, 32, 64, test.snapshots[:, :, 1])
+        r = row("sweep", "PSD", "0.03", "8")
         @test value(r, "l2_error_max") ≈
               maximum(relative_l2_errors(reduced.snapshots, test.snapshots)) rtol=1e-8
         @test value(r, "max_l2_error_fluct") ≈
