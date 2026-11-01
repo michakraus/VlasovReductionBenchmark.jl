@@ -150,6 +150,30 @@ end
         @test still.training.last == still.training.first
     end
 
+    # each network trains on the Charbonnier relative loss, from the network of its own seed:
+    # with the step that does not move, the first loss and the latent coordinates are those of
+    # the network built afresh with that seed
+    W = parity_snapshots(S, F0)
+    C = psd_coordinates(psd_basis(W, 128), W)
+    ε = GML.CharbonnierRelativeLoss().ε
+    fresh = map((42, 43)) do seed
+        untied = NeuralNetwork(GML.SymplecticAutoencoder(128, 4), CPU(), Float64;
+            rng = Xoshiro(seed))
+        Ĉ = untied(C)
+        charbonnier = (sqrt(sum(abs2, Ĉ - C) + ε^2) - ε) / sqrt(sum(abs2, C) + ε^2)
+        trained = train_untied(S, F0, 4; seed, steps = 1, step_size = nextfloat(0.0))
+        @test trained.training.first ≈ charbonnier rtol=1e-12
+        tied = weight_tied_network(G, 4; seed)
+        trained = train_weight_tied(S, F0, 4; seed, steps = 1, step_size = nextfloat(0.0))
+        @test trained.training.first ≈ loss(tied.model, params(tied), :grid, G) rtol=1e-12
+        latent = GML.encode(tied, :grid, G[:, :, 7])
+        @test encode(trained.reduction, S[:, :, 7]) ≈ latent rtol=1e-12
+        (charbonnier = charbonnier, latent = latent)
+    end
+    # the seed matters to both networks
+    @test abs(fresh[1].charbonnier - fresh[2].charbonnier) > 1e-6
+    @test norm(fresh[1].latent - fresh[2].latent) > 1e-3 * norm(fresh[1].latent)
+
     # a loss that becomes non-finite ends the training with the step after which it is
     nn = TRAINED["untied"].network
     Y = randn(Xoshiro(5), 128, 3)
@@ -215,5 +239,11 @@ end
         broken = run_reduced(
             r, short, NX, NV, f; perturb = (s, z) -> s == 2 && (z[1] = NaN))
         @test (broken.status, broken.failed_step) == ("failed at step 2", 2)
+        # a state far from the training data, the fluctuation scaled by 10^k, ends with a status
+        for k in (-8, 8)
+            scaled = run_reduced(r, short, NX, NV, F0' .+ 10.0^k .* (f .- F0'))
+            @test occursin(r"^(ok|failed at step \d+(: rank-deficient decoder)?)$",
+                scaled.status)
+        end
     end
 end

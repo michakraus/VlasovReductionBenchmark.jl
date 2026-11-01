@@ -104,6 +104,24 @@ end
     @test occursin(r"^failed at step [1-9]\d*: rank-deficient decoder$", reduced.status)
     @test reduced.failed_step ≥ 1
     @test length(reduced.states) == reduced.failed_step
+
+    # a Jacobian with a value that is not finite is not checked for rank
+    @test check_rank([NaN 0.0; 0.0 1.0; 0.0 0.0]) === nothing
+    @test check_rank([Inf 0.0; 0.0 1.0; 0.0 0.0]) === nothing
+    @test check_rank(ForwardDiff.Dual.([NaN 0.0; 0.0 1.0], 1.0)) === nothing
+    # so a decoder that turns non-finite inside a step ends the run as a step whose solve fails
+    for blowup in (Inf, NaN)
+        calls[] = 0
+        overflowing = z -> begin
+            eltype(z) === Float64 && (calls[] += 1)
+            calls[] > 100 ? z .* blowup : copy(z)
+        end
+        reduced = run_reduced(
+            AutoencoderReduction(encoder, overflowing, B, F0, NX, NV), short, NX, NV,
+            F_INIT)
+        @test occursin(r"^failed at step [1-9]\d*$", reduced.status)
+        @test length(reduced.states) == reduced.failed_step
+    end
 end
 
 @testset "The canonical flow of the pulled-back energy" begin

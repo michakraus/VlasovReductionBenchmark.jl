@@ -75,9 +75,58 @@
 - **evidence:** GeometricMachineLearning (`main` at `d3892de5`) exports `encode` and `decode`
   (`src/GeometricMachineLearning.jl:282` there), with methods for its reduced systems
   (`src/reduced_system/reduced_system.jl:408-422` there). This package exports its own `encode`
-  and `decode` of a `LinearReduction`, the same concept for a linear reduction.
-  GeometricMachineLearning is no dependency here, but a script that loads both packages and calls
-  `encode` unqualified gets an `UndefVarError` for an ambiguous binding; such a script qualifies
-  the call.
+  and `decode` of a `LinearReduction` and of an `AutoencoderReduction`, the same concept for a
+  reduction. The package imports GeometricMachineLearning and calls its `encode` qualified
+  (`src/autoencoders.jl:102`); a script that loads both packages and calls `encode`
+  unqualified gets an `UndefVarError` for an ambiguous binding, so such a script qualifies the
+  call.
 - **kind:** found late
+- **found:** 2026-11-01
+
+### K8 · The norm ratio of the canonical-flow record depends on the grid.
+
+- **location:** `src/autoencoders.jl:460`
+- **evidence:** `canonical_flow_comparison` divides the norm of the canonical flow of the
+  discrete energy by the norm of the Arakawa field. The gradient of the energy carries the cell
+  area `h_x h_v` and the field does not, so the ratio changes with the grid: for linear Landau at
+  `t = 0` it is 662.7 on 32 × 64 and 159.5 on 64 × 128 (the round-1 critic review of this
+  branch). `autoencoders_hamiltonian.toml` writes `nx` and `nv` beside the ratio, so only
+  ratios of one grid compare.
+- **kind:** not verified
+- **found:** 2026-11-01
+
+### K9 · The cosine of the canonical-flow record does not tell the canonical flow from the gradient.
+
+- **location:** `src/autoencoders.jl:460`
+- **evidence:** the canonical flow `J ∇H` and the gradient `∇H` have the same norm, and both are
+  orthogonal to the Arakawa field to round-off: on the smoke grid at `t = 0` the cosines are
+  `-1.96e-18` and `-1.39e-18`. A mutant that writes `∇H`, or `J ∇H` with the sign of one half
+  flipped, in place of the flow changes neither written value beyond round-off. A cosine near
+  zero is therefore no evidence that the parity split is not canonical; only the norm ratio
+  carries information.
+- **kind:** not verified
+- **found:** 2026-11-01
+
+### K10 · The seeds of the weight-tied network give losses that differ only at round-off.
+
+- **location:** `src/autoencoders.jl:193`
+- **evidence:** the seed sets the layers between the frontend and the PSD lift of the core,
+  whose decode–encode is the projection of that lift whatever those layers are. The loss after
+  the frontend's and the lift's `solve!` is bit-identical for seeds 42 and 43 (0.7433233237891245
+  at `n = 16` on 64 × 128), and after 10 steps the last losses differ by `1.5e-11` (the round-1
+  critic review of this branch). The range over the three seeds of the full mode is then near
+  zero for the reconstruction. The seed changes the latent coordinates: on the smoke grid at
+  `n = 4`, the encoded snapshot of seeds 42 and 43 differs by 0.114 at a norm of 0.165.
+- **kind:** not verified
+- **found:** 2026-11-01
+
+### K11 · The memory of the full mode of `scripts/autoencoders.jl` is not measured.
+
+- **location:** `src/autoencoders.jl:593`
+- **evidence:** `run_autoencoders` keeps every trained reduction in `specs` until
+  `autoencoder_costs` serializes them all for the fresh timing process. Each untied reduction
+  holds its lift and its `Q` factor, two `8192 × 128` `Float64` matrices of 8 MiB each on
+  64 × 128, so the up to 36 untied data rows of the full mode hold about 600 MiB in memory and
+  on disk.
+- **kind:** not verified
 - **found:** 2026-11-01

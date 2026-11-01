@@ -308,10 +308,14 @@ real_value(x::ForwardDiff.Dual) = real_value(ForwardDiff.value(x))
     check_rank(M)
 
 Throw a [`RankDeficientDecoder`](@ref) when the smallest singular value of the values of `M` is
-below [`RANK_TOLERANCE`](@ref) times its largest, or when `M` is zero.
+below [`RANK_TOLERANCE`](@ref) times its largest, or when `M` is zero. A matrix with a value
+that is not finite is not checked: the solve of the step that evaluates it fails on the
+non-finite field instead, as it does for a `LinearReduction`.
 """
 function check_rank(M::AbstractMatrix)
-    s = svdvals(real_value.(M))
+    V = real_value.(M)
+    all(isfinite, V) || return nothing
+    s = svdvals(V)
     s[1] > 0 && s[end] ≥ RANK_TOLERANCE * s[1] ||
         throw(RankDeficientDecoder(s[1] > 0 ? s[end] / s[1] : 0.0))
     return nothing

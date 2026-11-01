@@ -67,7 +67,8 @@ so `[Unreleased]` has no target version.
   vector field through the decoder $\Psi$ (`ManifoldGalerkinField`), a least-squares solve
   against the decoder's Jacobian from ForwardDiff (`decoder_jacobian`), integrated with
   `ImplicitMidpoint`. A Jacobian of numerical rank below $n$ ends the run with the status
-  `failed at step <s>: rank-deficient decoder`.
+  `failed at step <s>: rank-deficient decoder`; a Jacobian with a value that is not finite is
+  left to the step's solve, and the run ends with the status `failed at step <s>`.
 - `canonical_flow_comparison`: the cosine and the norm ratio between the canonical flow of the
   discrete energy in parity coordinates and VlasovMethods' vector field, the record that the
   parity split is not canonical for Vlasov–Poisson.
