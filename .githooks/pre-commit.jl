@@ -107,7 +107,11 @@ function formatting(files)
         id = Base.identify_package("JuliaFormatter")
         id === nothing &&
             error("JuliaFormatter is in no environment of the load path; $env is first")
-        format = Base.require(id).format
+        formatter = Base.require(id)
+        version = pkgversion(formatter)
+        version !== nothing && version >= v"2.14" ||
+            error("JuliaFormatter $version is older than 2.14, which the hook needs; $env pins it")
+        format = formatter.format
         filter(f -> !Base.invokelatest(format, f; overwrite = false, throw_on_error = true), files)
     catch e
         println(stderr, sprint(showerror, e))
@@ -149,7 +153,16 @@ function lint(files)
         println("$(YELLOW)fatou lint: skipped — fatou is not on the PATH$(NC)")
         return
     end
-    code, out = run_boxed(`fatou lint --force-exclude --output concise $files`, 60)
+    # A fatou on the PATH that the system cannot start, such as a script whose interpreter is
+    # missing, makes the start throw; the stage is advisory, so it is skipped.
+    code, out = try
+        run_boxed(`fatou lint --force-exclude --output concise $files`, 60)
+    catch e
+        e isa Base.IOError || rethrow()
+        println("$(YELLOW)fatou lint: could not start — stage skipped, not a failure$(NC)")
+        println(indent(split(sprint(showerror, e), '\n')))
+        return
+    end
     if code === nothing
         println("$(YELLOW)fatou lint: timed out after 60s — stage skipped, not a failure$(NC)")
         println("    A staged file is pathological for fatou.")
@@ -245,7 +258,7 @@ function main()
     end
     cd(root)
 
-    jl = staged("--diff-filter=ACMR", "--", "*.jl")
+    jl = staged("--diff-filter=ACMRT", "--", "*.jl")
     jl === nothing && refuse_unlisted()
     tests = staged("--", "test/")
     tests === nothing && refuse_unlisted()
