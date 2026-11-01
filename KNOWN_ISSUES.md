@@ -222,3 +222,25 @@
   returns `0.0`.
 - **kind:** defect
 - **found:** 2026-11-01
+
+### K20 · `run_pic` infers `Any` for most of its result fields.
+
+- **location:** `src/particles.jl:190`
+- **evidence:** VlasovMethods' `ParticleDistribution(1, 1, M)` does not infer a concrete type, so
+  `pic_method` returns a `SplittingMethod` that is not concrete, and the stored trajectory is read
+  with an untyped `h5open(f -> read(f, "z"), file)` (`src/particles.jl:197`). 8 of the 12 fields
+  of the result of `run_pic` infer `Any`. The time loop is `run!`, behind a function barrier, so
+  only the comprehensions over the about 801 stored steps dispatch at run time. The HDF5 read
+  takes a type assertion locally; the rest of the cause is upstream.
+- **kind:** upstream
+- **found:** 2026-11-01
+
+### K21 · The network of `train_frontend` is not of a concrete type.
+
+- **location:** `src/particles.jl:296`
+- **evidence:** `SymmetricSymplecticAutoencoder(M, 1, n; frontend)` takes the frontend as a
+  `Symbol` at run time, so the type of the network depends on a value, and each training step
+  dispatches once at `training_step!`, in front of the Zygote gradient that dominates its cost.
+  The cause is GeometricMachineLearning's API, which selects the frontend by `Symbol`.
+- **kind:** upstream
+- **found:** 2026-11-01
