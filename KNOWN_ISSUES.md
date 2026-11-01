@@ -48,3 +48,36 @@
   VlasovMethods.
 - **kind:** upstream
 - **found:** 2026-10-31
+
+### K5 · A relative error or a relative drift whose reference is zero is `NaN`.
+
+- **location:** `src/metrics.jl:10`
+- **evidence:** `relative_l2_errors(ones(2, 2, 1), ones(2, 2, 1), [1.0, 1.0])` returns `[NaN]`:
+  a snapshot equal to the background has no fluctuation to relate the error to. `max_drift`
+  (`src/metrics.jl:32`) returns `NaN` for `[0.0, 1.0]`, a series that starts at zero. In the
+  smoke mode no data row of `linear_baselines.csv` has a `NaN` error: the script test compares
+  each row's errors with their maximum, which a `NaN` fails. The full mode is not checked for it.
+- **kind:** found late
+- **found:** 2026-11-01
+
+### K6 · No test shows that the online cost of a reduced step is measured after its warm-up.
+
+- **location:** `src/reduction.jl:338`
+- **evidence:** `reduced_step_time` runs `warmup` steps before the timed ones. A mutant that
+  removes the call `timed_steps!(solstep, int, 1, warmup)` survives every test, because the timed
+  steps give a time per step with or without it; only the size of that time differs.
+- **kind:** not verified
+- **found:** 2026-11-01
+
+### K7 · `encode` and `decode` have the names of two functions that GeometricMachineLearning exports.
+
+- **location:** `src/reduction.jl:65`
+- **evidence:** GeometricMachineLearning (`main` at `d3892de5`) exports `encode` and `decode`
+  (`src/GeometricMachineLearning.jl:282` there), with methods for its reduced systems
+  (`src/reduced_system/reduced_system.jl:408-422` there). This package exports its own `encode`
+  and `decode` of a `LinearReduction`, the same concept for a linear reduction.
+  GeometricMachineLearning is no dependency here, but a script that loads both packages and calls
+  `encode` unqualified gets an `UndefVarError` for an ambiguous binding; such a script qualifies
+  the call.
+- **kind:** found late
+- **found:** 2026-11-01

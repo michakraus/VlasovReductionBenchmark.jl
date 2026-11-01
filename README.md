@@ -38,11 +38,29 @@ writes one HDF5 file per run to `runs/`, and the cost per step to
 `results/full_order_cost.toml`. It stops with an error when a run breaks its invariants or when a
 fitted rate misses the dispersion relation.
 
+## The linear baselines
+
+```sh
+julia --project scripts/linear_baselines.jl --runs-dir runs --results-dir results
+```
+
+POD-Galerkin and the cotangent-lift PSD-Galerkin reduce the fluctuation around the spatial
+average $f_0(v)$ of each run's initial condition at the latent dimensions
+$n \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), and integrate the Galerkin
+projection of VlasovMethods' vector field with `ImplicitMidpoint`. PSD works in the parity
+coordinates $q$, the odd, and $p$, the even part of $f - f_0$ in $v$. The script writes one row per
+method, case and $n$, and per test amplitude of the sweep, to `results/linear_baselines.csv`, with
+each relative $L^2$ error both against $f$ and against the fluctuation $f - f_0$ (the columns that
+end in `_fluct`), and the online cost per reduced step, measured in a fresh process, to
+`results/linear_baselines_cost.toml`. It stops with an error when the POD projection error rises
+with $n$ or exceeds the PSD error.
+
 ## Tests
 
 ```sh
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-The suite runs the script's smoke mode in the `core` group and its full mode in the `slow` group;
-`Pkg.test()` runs both.
+The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group, and its full mode,
+the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the Galerkin models in
+the `slow` group; `Pkg.test()` runs both.

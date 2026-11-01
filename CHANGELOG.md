@@ -26,3 +26,30 @@ so `[Unreleased]` has no target version.
   Landau damping and of the two-stream instability against the oracle, and writes the cost per
   step, measured in a fresh process, to `<r>/full_order_cost.toml`. The test suite runs its smoke
   mode, and its full mode in the `slow` group.
+- The velocity-parity split (`parity_split`, `parity_join`): the fluctuation $f - f_0$ around the
+  spatial average $f_0(v)$ (`background`) as the canonical vector $(q, p)$, the odd and the even
+  part in $v$ on the nodes with $v > 0$.
+- The linear baselines: POD-Galerkin in grid coordinates (`pod_reduction`, ReducedBasisMethods'
+  `PODSVD`) and the cotangent-lift PSD-Galerkin in parity coordinates (`psd_reduction`,
+  `CotangentLiftSVD` on the stacked parity snapshots), each reducing VlasovMethods' Arakawa
+  vector field around $f_0$ and integrated with `ImplicitMidpoint` (`run_reduced`). A run whose
+  Newton solve does not converge, or whose state is not finite, stops with its status. With a
+  full orthogonal basis both reproduce a full-order `ImplicitMidpoint` run to $10^{-10}$; the
+  `slow` group checks this on $32 \times 64$.
+- The metrics of a reduced run (`trajectory_metrics`, `fitted_rate`): the relative $L^2$ error at
+  each snapshot and its maximum, the fitted damping or growth rate, and the drifts of the
+  discrete energy, of the $L^1$ and $L^2$ norms and of the entropy, with the count of nodes where
+  $f \le 0$. Each error is relative to $f$ and also relative to the fluctuation $f - f_0$: where
+  the fluctuation is small against $f$, only the second shows that a reduced model lost it.
+- `scripts/linear_baselines.jl --runs-dir <d> --results-dir <r> [--smoke]`: POD and PSD at
+  $n \in \{4, 8, 16, 32\}$ (smoke: $\{4, 8\}$) on the three data runs of `scripts/full_order.jl`
+  and on the amplitude sweep, one row each in `<r>/linear_baselines.csv`, with every error both
+  relative to $f$ and relative to the fluctuation (`max_l2_error_fluct`, `l2_error_fluct`). It
+  asserts that the POD projection error of the fluctuation snapshots does not rise with $n$ and is
+  at most the PSD error, and it records the
+  online cost per reduced step, measured in a fresh process, as a ratio to the full-order cost.
+  A Landau fit that finds too few maxima in a reduced run leaves the rate empty, with the reason
+  in the row's `rate_status`. The test suite runs its smoke mode in the `slow` group.
+- ReducedBasisMethods, ReducedComplexityModeling (for `ParameterSpace`), GeometricEquations (for
+  the vector field of VlasovMethods' integrator) and SimpleSolvers (for the convergence of a
+  step) are direct dependencies.
