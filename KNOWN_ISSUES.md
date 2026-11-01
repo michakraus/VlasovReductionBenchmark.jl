@@ -133,14 +133,15 @@
 
 - **location:** `src/autoencoders.jl:193`
 - **evidence:** the seed sets the layers between the frontend and the PSD lift of the core,
-  whose decode–encode is the projection of that lift whatever those layers are. On I1's linear
-  Landau run (64 × 128, `n = 16`), the loss after the frontend's and the lift's `solve!` is
-  0.7912309074393263 for seeds 42 and 43. In the full mode of `scripts/autoencoders.jl`, the
-  column `loss_stage_I` of the 36 weight-tied data rows is equal for seeds 42, 43 and 44 in each
-  of the 12 groups of one case and one `n`, and `loss_final` differs between the seeds of a group
-  by at most `1.6e-7` relative. The range over the three seeds is then near zero for the
-  reconstruction. The seed changes the latent coordinates: on the smoke grid at `n = 4`, the
-  encoded snapshot of seeds 42 and 43 differs by 0.114 at a norm of 0.165.
+  whose decode–encode is the projection of that lift whatever those layers are. On the linear
+  Landau run of `scripts/full_order.jl` (64 × 128, `n = 16`), the loss after the frontend's and
+  the lift's `solve!` is 0.7912309074393263 for seeds 42 and 43. In the full mode of
+  `scripts/autoencoders.jl`, the column `loss_stage_I` of the 36 weight-tied data rows is equal
+  for seeds 42, 43 and 44 in each of the 12 groups of one case and one `n`, and `loss_final`
+  differs between the seeds of a group by at most `1.6e-7` relative. The range over the three
+  seeds is then near zero for the reconstruction. The seed changes the latent coordinates: on the
+  smoke grid at `n = 4`, the encoded snapshot of seeds 42 and 43 differs by 0.114 at a norm of
+  0.165.
 - **kind:** found late
 - **found:** 2026-11-01
 
