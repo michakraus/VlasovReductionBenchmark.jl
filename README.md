@@ -49,8 +49,9 @@ average $f_0(v)$ of each run's initial condition at the latent dimensions
 $n \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), and integrate the Galerkin
 projection of VlasovMethods' vector field with `ImplicitMidpoint`. PSD works in the parity
 coordinates $q$, the odd, and $p$, the even part of $f - f_0$ in $v$. The script writes one row per
-method, case and $n$, and per test amplitude of the sweep, to `results/linear_baselines.csv`, and
-the online cost per reduced step, measured in a fresh process, to
+method, case and $n$, and per test amplitude of the sweep, to `results/linear_baselines.csv`, with
+each relative $L^2$ error both against $f$ and against the fluctuation $f - f_0$ (the columns that
+end in `_fluct`), and the online cost per reduced step, measured in a fresh process, to
 `results/linear_baselines_cost.toml`. It stops with an error when the POD projection error rises
 with $n$ or exceeds the PSD error.
 

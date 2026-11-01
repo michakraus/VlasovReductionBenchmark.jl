@@ -13,6 +13,17 @@ using Test
     @test e[2] ≈ sqrt(2 / 6) rtol=1e-15
     # 3 · full against full: an error of 2, not 4
     @test relative_l2_errors(3 .* full, full) ≈ [2.0, 2.0] rtol=1e-15
+    # relative to the fluctuation around f0: f = f0 + 2 at every node, so ‖f - f0‖² = 6 · 4 and
+    # the error of snapshot 2 is sqrt(2 / 24); relative to f it would be sqrt(2 / 100)
+    f0 = [1.0, 2.0, 3.0]
+    full = repeat(f0' .+ 2.0, 2, 1, 2)
+    reduced = copy(full)
+    reduced[1, 1, 2] += 1
+    reduced[2, 3, 2] -= 1
+    e = relative_l2_errors(reduced, full, f0)
+    @test e[1] == 0
+    @test e[2] ≈ sqrt(2 / 24) rtol=1e-15
+    @test relative_l2_errors(reduced, full)[2] ≈ sqrt(2 / 100) rtol=1e-15
     e = try
         relative_l2_errors(ones(2, 3, 1), full)
     catch e
@@ -79,9 +90,18 @@ end
     reduced[1, 1, 3] = 2.0
     series = (energy = [2.0, 2.2, 1.9], l1 = [1.0, 1.0, 1.5], l2 = [3.0, 3.0, 3.0],
         entropy = [-1.0, -1.1, -1.0], nonpositive = [0, 2, 1])
-    m = trajectory_metrics(reduced, full, series)
+    # around f0 = 1/2 the fluctuation is 1/2 at each of the 8 nodes, ‖f - f0‖² = 2
+    m = trajectory_metrics(reduced, full, series, [0.5, 0.5])
     @test m.l2_errors ≈ [0, 0, sqrt(1 / 8)] atol=1e-15
     @test m.l2_error_max ≈ sqrt(1 / 8) rtol=1e-15
+    @test m.l2_errors_fluct ≈ [0, 0, sqrt(1 / 2)] atol=1e-15
+    @test m.l2_error_fluct_max ≈ sqrt(1 / 2) rtol=1e-15
+    # the largest error is the maximum over the snapshots, not the last one
+    mid = copy(full)
+    mid[1, 1, 2] = 2.0
+    m = trajectory_metrics(mid, full, series, [0.5, 0.5])
+    @test m.l2_error_max ≈ sqrt(1 / 8) rtol=1e-15
+    @test m.l2_error_fluct_max ≈ sqrt(1 / 2) rtol=1e-15
     @test m.energy_drift ≈ 0.1 rtol=1e-12
     @test m.l1_drift ≈ 0.5 rtol=1e-12
     @test m.l2_drift == 0

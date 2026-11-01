@@ -27,10 +27,17 @@ end
     U = svd(reshape(S .- f0', 32 * 64, :)).U[:, 1:4]
     @test opnorm(U - V * (V' * U)) < 1e-10
 
-    # the initial state is f0 plus a fluctuation of relative size about α / √2, so its projection
-    # error stays below 2α; a basis and an encoding that keep f0 in the fluctuation miss it by O(1)
+    # a basis of the run's own first snapshot alone has one column, its fluctuation, and projects
+    # that fluctuation to round-off; a basis built with f0 not subtracted misses it by O(1)
     f = S[:, :, 1]
-    @test norm(decode(r, encode(r, f)) - f) / norm(f) < 2 * 0.01
+    g = vec(f .- sum(f; dims = 1) ./ 32)
+    r1 = pod_reduction(S[:, :, 1:1], f0, 1)
+    V1 = r1.basis
+    @test size(V1) == (32 * 64, 1)
+    @test norm(g - V1 * (V1' * g)) / norm(g) < 1e-12
+    @test norm(vec(decode(r1, encode(r1, f)) - f)) / norm(g) < 1e-12
+    u = vec(f) / norm(f)
+    @test norm(g - u * (u' * g)) / norm(g) > 0.5
     @test size(decode(r, encode(r, f))) == (32, 64)
     @test length(encode(r, f)) == 4
 end

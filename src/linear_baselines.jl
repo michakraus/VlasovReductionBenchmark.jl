@@ -10,7 +10,8 @@ const LINEAR_METHODS = ("POD" => pod_reduction, "PSD" => psd_reduction)
 
 "The columns of `linear_baselines.csv`, in order."
 const BASELINE_COLUMNS = ("method", "kind", "case", "alpha", "n", "state_size", "status",
-    "l2_error_max", "l2_errors", "rate", "rate_status", "rate_full_order", "energy_drift",
+    "l2_error_max", "l2_errors", "max_l2_error_fluct", "l2_error_fluct",
+    "rate", "rate_status", "rate_full_order", "energy_drift",
     "l1_drift",
     "l2_drift", "entropy_drift", "nonpositive_nodes", "projection_error", "offline_seconds",
     "online_seconds_per_step", "online_ratio")
@@ -65,7 +66,7 @@ end
 
 The row of the reduction `r` of the data `run` at latent dimension `n`: the reduced run of
 [`run_reduced`](@ref), with `perturb`, and its [`trajectory_metrics`](@ref) against the run,
-the rate and its status of [`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the
+around the background of the run's first snapshot, the rate and its status of [`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the
 run, the snapshot `projection` error and the `offline` seconds. A reduced run that stops
 leaves every metric empty.
 """
@@ -77,12 +78,14 @@ function data_row(method, run, n, r, offline, projection, mode; perturb = nothin
         offline_seconds = offline)
     reduced.status == "ok" || return baseline_row(; common...)
 
-    m = trajectory_metrics(reduced.snapshots, run.snapshots, reduced)
+    m = trajectory_metrics(reduced.snapshots, run.snapshots, reduced,
+        background(run.snapshots[:, :, 1]))
     rate, rate_status = reduced_rate(case.name, reduced.times, reduced.E1, mode.landau_window)
     rate_full = fitted_rate(case.name, run.times, run.E1, mode.landau_window)
 
     return baseline_row(; common..., l2_error_max = m.l2_error_max,
-        l2_errors = join(m.l2_errors, ';'), rate = something(rate, ""),
+        l2_errors = join(m.l2_errors, ';'), max_l2_error_fluct = m.l2_error_fluct_max,
+        l2_error_fluct = join(m.l2_errors_fluct, ';'), rate = something(rate, ""),
         rate_status = rate_status, rate_full_order = something(rate_full, ""),
         energy_drift = m.energy_drift,
         l1_drift = m.l1_drift, l2_drift = m.l2_drift, entropy_drift = m.entropy_drift,
@@ -178,7 +181,8 @@ For each run of [`DATA_RUNS`](@ref) it asserts the POD optimality of
 [`checked_projection_errors`](@ref), and for each method and `n` it builds the basis from that
 run, integrates the reduced model over the run's time span and writes a [`data_row`](@ref). For
 the amplitude sweep it builds each basis from the three training runs together, around the
-background of the first, and writes the largest relative error at each test amplitude. The online
+background of the first, and writes the largest relative error at each test amplitude, relative
+to ``f`` and relative to the fluctuation around the background of the test run. The online
 cost of each data row that completes comes from [`reduced_costs`](@ref), as a ratio to
 `<results_dir>/full_order_cost.toml`. It writes `<results_dir>/linear_baselines.csv`, prints the
 number of rows and of failed runs, and returns the rows. A reduced run that stops is a row with
@@ -238,12 +242,14 @@ function run_linear_baselines(; runs_dir::AbstractString, results_dir::AbstractS
             common = (method = method, kind = "sweep", case = run.case.name,
                 alpha = run.case.α, n = n, state_size = n, status = reduced.status,
                 offline_seconds = offline)
+            reduced.status == "ok" || (push!(rows, baseline_row(; common...)); continue)
+            f0_run = background(run.snapshots[:, :, 1])
             push!(rows,
-                reduced.status == "ok" ?
                 baseline_row(; common...,
                     l2_error_max = maximum(relative_l2_errors(reduced.snapshots,
-                        run.snapshots))) :
-                baseline_row(; common...))
+                        run.snapshots)),
+                    max_l2_error_fluct = maximum(relative_l2_errors(reduced.snapshots,
+                        run.snapshots, f0_run))))
         end
     end
 

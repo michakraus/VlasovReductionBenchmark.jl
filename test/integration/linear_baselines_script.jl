@@ -89,7 +89,8 @@ end
         header, rows = read_csv(joinpath(results, "linear_baselines.csv"))
         col(name) = findfirst(==(name), header)
         @test header[1:5] == ["method", "kind", "case", "alpha", "n"]
-        for name in ("status", "l2_error_max", "l2_errors", "rate", "rate_full_order",
+        for name in ("status", "l2_error_max", "l2_errors", "l2_error_fluct",
+            "max_l2_error_fluct", "rate", "rate_full_order",
             "energy_drift", "l1_drift", "l2_drift", "entropy_drift", "nonpositive_nodes",
             "projection_error", "offline_seconds", "online_seconds_per_step", "online_ratio")
             @test name in header
@@ -115,16 +116,22 @@ end
             @test status == "ok" || occursin(r"^failed at step \d+$", status)
             if status == "ok"
                 @test parse(Float64, r[col("l2_error_max")]) ≥ 0
+                # the fluctuation is a fraction of f, so the error relative to it is larger
+                @test parse(Float64, r[col("max_l2_error_fluct")]) >
+                      parse(Float64, r[col("l2_error_max")])
                 @test parse(Float64, r[col("offline_seconds")]) > 0
             else
                 nfailed += 1
-                @test r[col("l2_error_max")] == ""
+                @test r[col("l2_error_max")] == r[col("max_l2_error_fluct")] == ""
             end
         end
         for r in data
             r[col("status")] == "ok" || continue
             errors = parse.(Float64, split(r[col("l2_errors")], ';'))
             @test maximum(errors) == parse(Float64, r[col("l2_error_max")])
+            fluct = parse.(Float64, split(r[col("l2_error_fluct")], ';'))
+            @test length(fluct) == length(errors)
+            @test maximum(fluct) == parse(Float64, r[col("max_l2_error_fluct")])
             @test parse(Float64, r[col("online_seconds_per_step")]) > 0
             @test parse(Float64, r[col("online_ratio")]) > 0
             # a rate for the two linear cases only, where the fit finds its maxima
@@ -167,7 +174,8 @@ end
         for r in rows
             @test r[col("status")] == "failed at step 2"
             @test r[col("offline_seconds")] != ""
-            for name in ("l2_error_max", "l2_errors", "rate", "energy_drift",
+            for name in ("l2_error_max", "l2_errors", "l2_error_fluct", "max_l2_error_fluct",
+                "rate", "energy_drift",
                 "online_seconds_per_step", "online_ratio")
                 @test r[col(name)] == ""
             end
