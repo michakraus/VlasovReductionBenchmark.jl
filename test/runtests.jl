@@ -13,6 +13,7 @@ if "core" in GROUPS
     @safetestset "Autoencoders" include("autoencoders.jl")
     @safetestset "DLRA solver" include("dlra.jl")
     @safetestset "Particle half" include("particles.jl")
+    @safetestset "Verdict" include("verdict.jl")
 end
 
 if "slow" in GROUPS

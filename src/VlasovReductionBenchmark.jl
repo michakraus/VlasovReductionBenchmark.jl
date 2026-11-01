@@ -9,6 +9,8 @@ It also holds the two symplectic autoencoders and their manifold Galerkin models
 The particle half: a PIC run of nonlinear Landau damping, the POD mode counts of its labelled
 and sorted snapshots, and the particle frontends of GeometricMachineLearning's
 `SymmetricSymplecticAutoencoder` trained on them.
+
+The verdict: one Markdown page, written from the result files of all of these runs.
 """
 module VlasovReductionBenchmark
 
@@ -53,6 +55,7 @@ include("linear_baselines.jl")
 include("autoencoders.jl")
 include("dlra.jl")
 include("particles.jl")
+include("verdict.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -71,5 +74,6 @@ export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra
        run_dlra_benchmark, run_full_rank
 export pod_error, pod_modes, run_particles, run_pic, sample_particles, sorted_snapshots,
        train_frontend, write_particle_run
+export write_verdict
 
 end

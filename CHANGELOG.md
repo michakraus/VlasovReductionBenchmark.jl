@@ -123,3 +123,19 @@ so `[Unreleased]` has no target version.
   100 steps in a fresh process, with the HDF5 write of each step included. The test suite runs
   the smoke mode of the script in the `slow` group; the full mode is a script run, outside the
   suite. The training takes GeometricMachineLearning from its `main` through `[sources]`.
+- `<r>/dlra.csv` has the column `max_l2_error_fluct_full_rank`: the largest error of the DLRA run
+  of rank $r$ against the full-rank solver of the same discretisation, relative to the
+  fluctuation of that solver's run. It measures the error of the rank alone; the error against
+  the full-order runs also holds the difference of the two discretisations.
+- `scripts/verdict.jl --results-dir <r>... --out <file>`: one Markdown page from the result files
+  of the full modes of the other scripts, which names each input file and the commit in the path
+  of its directory. For each case (the three data cases and the sweep) and each criterion (the
+  error relative to the fluctuation, the rate, the drifts of the energy and of the $L^1$, $L^2$
+  and entropy Casimirs, the out-of-sample error and the online cost per unit of simulated time)
+  it gives, at each $n$, POD, PSD, DLRA (against its own full-rank solver) and the median and
+  range over the seeds of each autoencoder, the best baseline, and whether each autoencoder is
+  better; an autoencoder beats the best baseline when it is better at three of the four $n$. A
+  row whose status is not `ok` enters no median and is listed. The page also gives the particle
+  half, the findings of the runs, and as its last line whether part G of the plan goes on: yes
+  when an autoencoder beats the best baseline on the error criterion in a case and meets both the
+  rate bound and the compression bound. A missing input file stops the script with its name.
