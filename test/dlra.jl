@@ -79,7 +79,7 @@ end
     for case in (linear_landau(0.005), CASES...), (nx, nv) in ((32, 64), (64, 128))
 
         d = dlra_discretisation(case, nx, nv)
-        X, S, V = initial_factors(d, 4)
+        X, _, V = initial_factors(d, 4)
         rng = Xoshiro(42)
         for (B, h) in ((X, d.hx), (V, d.hv))
             R = randn(rng, size(B, 1), 3)
