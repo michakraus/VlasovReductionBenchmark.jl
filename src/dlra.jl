@@ -14,12 +14,16 @@ const AGREEMENT_STEPS = 20
 "The rank of the DLRA run whose damping rate of linear Landau damping is checked."
 const CHECK_RANK = 16
 
-"The columns of `dlra.csv`, in order. The column `n` holds the rank ``r``."
+"""
+The columns of `dlra.csv`, in order. The column `n` holds the rank ``r``. The column
+`max_l2_error_fluct_full_rank` holds the largest error of the run of rank ``r`` against the
+full-rank solver of the same discretisation, relative to the fluctuation of that solver's run.
+"""
 const DLRA_COLUMNS = ("method", "kind", "case", "alpha", "n", "state_size", "status",
     "l2_error_max", "l2_errors", "max_l2_error_fluct", "l2_error_fluct", "rate", "rate_status",
     "rate_full_order", "energy_drift", "l1_drift", "l2_drift", "entropy_drift", "mass_drift",
-    "nonpositive_nodes", "full_rank_l2_error_max", "offline_seconds",
-    "online_seconds_per_step", "online_ratio")
+    "nonpositive_nodes", "full_rank_l2_error_max", "max_l2_error_fluct_full_rank",
+    "offline_seconds", "online_seconds_per_step", "online_ratio")
 
 """
     dlra_mode(smoke)
@@ -377,25 +381,30 @@ function dlra_row(; kwargs...)
 end
 
 """
-    dlra_data_row(run, kind, r, full_rank_error, mode; perturb = nothing)
+    dlra_data_row(run, kind, r, full, mode; perturb = nothing)
 
 The row of the DLRA run of rank `r` of the full-order `run`, as [`read_run`](@ref) returns it:
 the [`run_dlra`](@ref), with `perturb`, and its [`trajectory_metrics`](@ref) against the run's
 snapshots, around the background of the run's first snapshot, the rate and its status of
 [`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the run, the drift of the mass, the
-[`dlra_state_size`](@ref), the `full_rank_error` and the `kind`, `"data"` or `"sweep"`. A run that
+[`dlra_state_size`](@ref) and the `kind`, `"data"` or `"sweep"`. `full` holds the snapshots of
+the full-rank solver of [`run_full_rank`](@ref) for the same case: the row holds their largest
+relative ``L^2`` error against the run's snapshots, and the largest error of the DLRA run against
+them, relative to their fluctuation around the background of their first snapshot. A run that
 stops leaves every metric of the trajectory empty.
 """
-function dlra_data_row(run, kind, r, full_rank_error, mode; perturb = nothing)
+function dlra_data_row(run, kind, r, full, mode; perturb = nothing)
     case = run.case
     dlra = run_dlra(case, run.nx, run.nv, r; perturb)
     common = (method = "DLRA", kind = kind, case = case.name, alpha = case.α, n = r,
         state_size = dlra_state_size(r, run.nx, run.nv), status = dlra.status,
-        full_rank_l2_error_max = full_rank_error, offline_seconds = dlra.offline_seconds)
+        full_rank_l2_error_max = maximum(relative_l2_errors(full, run.snapshots)),
+        offline_seconds = dlra.offline_seconds)
     dlra.status == "ok" || return dlra_row(; common...)
 
     m = trajectory_metrics(dlra.snapshots, run.snapshots, dlra,
         background(run.snapshots[:, :, 1]))
+    own = relative_l2_errors(dlra.snapshots, full, background(full[:, :, 1]))
     rate, rate_status = reduced_rate(case.name, dlra.times, dlra.E1, mode.landau_window)
     rate_full = fitted_rate(case.name, run.times, run.E1, mode.landau_window)
 
@@ -405,7 +414,7 @@ function dlra_data_row(run, kind, r, full_rank_error, mode; perturb = nothing)
         rate_status = rate_status, rate_full_order = something(rate_full, ""),
         energy_drift = m.energy_drift, l1_drift = m.l1_drift, l2_drift = m.l2_drift,
         entropy_drift = m.entropy_drift, mass_drift = max_drift(dlra.mass),
-        nonpositive_nodes = m.nonpositive_max)
+        nonpositive_nodes = m.nonpositive_max, max_l2_error_fluct_full_rank = maximum(own))
 end
 
 """
@@ -515,7 +524,7 @@ First it checks the solver: [`check_full_rank_agreement`](@ref) of the three cas
 grid ``32 × 64``, and [`check_dlra_rates`](@ref) on the grid of the mode. Then for each run it
 runs the full-rank solver, whose largest relative ``L^2`` error against the run each of its rows
 holds, and writes a [`dlra_data_row`](@ref) of kind `"data"` (the cases) or `"sweep"` (the test
-amplitudes) per rank. The online cost of each row that completes comes from
+amplitudes) per rank, which also holds the error of the rank against that solver. The online cost of each row that completes comes from
 [`dlra_costs`](@ref), as a ratio to `<results_dir>/full_order_cost.toml`; the ratio is per step,
 and a DLRA step is half the full-order step. It writes `<results_dir>/dlra.csv`, prints the
 number of rows and of failed runs, and returns the rows. `perturb` goes to every
@@ -549,9 +558,8 @@ function run_dlra_benchmark(; runs_dir::AbstractString, results_dir::AbstractStr
             "$file holds a $(run.nx) × $(run.nv) run, not the $(mode.grid[1]) × " *
             "$(mode.grid[2]) grid of this mode")
         full = run_full_rank(run.case, run.nx, run.nv)
-        full_rank_error = maximum(relative_l2_errors(full.snapshots, run.snapshots))
         for r in mode.ranks
-            push!(rows, dlra_data_row(run, kind, r, full_rank_error, mode; perturb))
+            push!(rows, dlra_data_row(run, kind, r, full.snapshots, mode; perturb))
             push!(row_files, file)
             @printf("  DLRA, %s, r = %d: %s\n", file, r, rows[end]["status"])
             flush(stdout)

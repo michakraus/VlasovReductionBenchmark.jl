@@ -8,8 +8,9 @@
 # full-rank solver and the run of rank 16 meet the rate check of linear Landau damping; a check
 # that fails stops the script. It then reads the run files from <d> and <r>/full_order_cost.toml,
 # and writes one row per case and rank, and per test amplitude of the sweep and rank, to
-# <r>/dlra.csv, with the online cost per step, measured in a fresh process, in <r>/dlra_cost.toml.
-# A DLRA run that blows up is a row with its status.
+# <r>/dlra.csv, with the errors against the run and against the full-rank solver, and the online
+# cost per step, measured in a fresh process, in <r>/dlra_cost.toml. A DLRA run that blows up is
+# a row with its status.
 
 using VlasovReductionBenchmark: run_dlra_benchmark
 
