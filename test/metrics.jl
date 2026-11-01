@@ -74,7 +74,6 @@ end
 @testset "Trajectory metrics" begin
     # a reduced run equal to the full run but for one node, against the closed forms
     nx, nv = 4, 2
-    times = collect(0:0.5:1.0)
     full = ones(nx, nv, 3)
     reduced = copy(full)
     reduced[1, 1, 3] = 2.0
