@@ -44,8 +44,10 @@ fitted rate misses the dispersion relation.
 julia --project -e 'using Pkg; Pkg.test()'
 ```
 
-The suite runs the script's smoke mode in the `core` group and its full mode in the `slow` group;
-`Pkg.test()` runs both.
+The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group and its full mode in
+the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
+`scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
+half* and no test.
 
 ## The particle half
 
@@ -59,5 +61,4 @@ frontends of `SymmetricSymplecticAutoencoder` on 256 of its particles. The scrip
 to `runs/particles_nonlinear_landau.h5`, and `particle_pod_modes.csv`, `particle_frontends.csv`
 and `particle_cost.toml` to `results/`. It stops with an error when the energy of the run drifts
 by more than $10^{-3}$ relative. `--smoke` runs 512 particles over $[0, 10]$ and trains on 64 of
-them. The test suite runs the smoke mode in the `slow` group; the full mode trains for hours, so
-it is this script run and no test.
+them.

@@ -59,3 +59,14 @@
   thresholds are the plan's (99 % and 99.99 %).
 - **kind:** found late
 - **found:** 2026-11-01
+
+### K6 · No test reaches a training run of `train_frontend` that stops on a finite loss and a non-finite gradient.
+
+- **location:** `src/particles.jl:308`
+- **evidence:** the mutant `status = isfinite(loss(ps)) ? "ok" : "failed at step $taken"`, with
+  `taken == steps &&` dropped, survives the `particles.jl` test file: such a run then reports
+  `"ok"`, while the docstring of `train_frontend` gives `"failed at step s"`. On a non-finite
+  loss, the edge that the tests reach, the mutant is equivalent, because `loss(ps)` is
+  deterministic.
+- **kind:** missing test
+- **found:** 2026-11-01
