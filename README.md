@@ -38,16 +38,71 @@ writes one HDF5 file per run to `runs/`, and the cost per step to
 `results/full_order_cost.toml`. It stops with an error when a run breaks its invariants or when a
 fitted rate misses the dispersion relation.
 
-## Tests
+## The linear baselines
 
 ```sh
-julia --project -e 'using Pkg; Pkg.test()'
+julia --project scripts/linear_baselines.jl --runs-dir runs --results-dir results
 ```
 
-The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group and its full mode in
-the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
-`scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
-half* and no test.
+POD-Galerkin and the cotangent-lift PSD-Galerkin reduce the fluctuation around the spatial
+average $f_0(v)$ of each run's initial condition at the latent dimensions
+$n \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), and integrate the Galerkin
+projection of VlasovMethods' vector field with `ImplicitMidpoint`. PSD works in the parity
+coordinates $q$, the odd, and $p$, the even part of $f - f_0$ in $v$. The script writes one row per
+method, case and $n$, and per test amplitude of the sweep, to `results/linear_baselines.csv`, with
+each relative $L^2$ error both against $f$ and against the fluctuation $f - f_0$ (the columns that
+end in `_fluct`), and the online cost per reduced step, measured in a fresh process, to
+`results/linear_baselines_cost.toml`. It stops with an error when the POD projection error rises
+with $n$ or exceeds the PSD error.
+
+## The autoencoders
+
+```sh
+julia --project scripts/autoencoders.jl --runs-dir runs --results-dir results
+```
+
+Two symplectic autoencoders of GeometricMachineLearning reduce the same fluctuations at the same
+latent dimensions: the untied `SymplecticAutoencoder` on the 128 leading PSD coordinates of each
+run, and a multi-modal autoencoder with one grid modality, a `BilinearStiefelLayer` with
+$m_x m_v = n$ modes per parity and a weight-tied core from $2n$ to $n$, whose bases and core lift
+start from their SVD solutions. Each trains for 2000 steps with three seeds (`--smoke`: 100 steps,
+one seed) on the Charbonnier relative reconstruction loss. The reduced model is the manifold
+Galerkin projection $\dot z = (\nabla\Psi)^{+} F(f_0 + \Psi(z))$ of VlasovMethods' vector field
+through the decoder $\Psi$, integrated with `ImplicitMidpoint`. The script writes one row per
+network, case, $n$ and seed, and per test amplitude of the sweep, to `results/autoencoders.csv`,
+with the losses before and after training, the online cost per reduced step to
+`results/autoencoders_cost.toml`, and the cosine and the norm ratio between the canonical flow of
+the energy in parity coordinates and VlasovMethods' vector field to
+`results/autoencoders_hamiltonian.toml`. A training whose loss does not fall, or becomes
+non-finite, is a row with a `failed` status, and the script goes on.
+
+## The DLRA solver
+
+```sh
+julia --project scripts/dlra.jl --runs-dir runs --results-dir results
+```
+
+A dynamical low-rank solver integrates the factored state $f = f_0 + X S V^{\mathsf T}$ of rank
+$r \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), with $X$ and $V$
+orthonormal in the inner products weighted by $h_x$ and $h_v$. Each step is the BUG step with
+augmented bases (K-step, L-step, then the Galerkin S-step on the bases of up to $2r$ columns),
+truncated back to rank $r$; each substep is one RK4 step. The discretisation is spectral in $x$
+and centred differences in $v$, periodic in $v$, with the same Poisson solve as the full-order
+runs. The time step is 0.025, half the full-order step, because RK4 with the spectral derivative
+is unstable at 0.05 on $64 \times 128$. The solver does not conserve the mass exactly; the drift
+is written, not asserted.
+
+Before it measures, the script checks the solver. At full rank in $x$ it agrees with a full-rank
+solver of the same discretisation to $10^{-10}$ over 20 steps on $32 \times 64$, and the
+full-rank solver and the run of rank 16 meet the rate check of linear Landau damping (2 % over
+$[0, 40]$ on $64 \times 128$; `--smoke`: 10 % over $[0, 25]$ on $32 \times 64$). It writes one row
+per case and rank, and per test amplitude of the sweep and rank, to `results/dlra.csv`, with the
+metrics of the linear baselines against the full-order runs, the state size
+$r(N_x + N_v) + r^2$, the error of the full-rank solver against the same full-order run (the
+difference of the two discretisations), and the online cost per DLRA step, measured in a fresh
+process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the cost of one DLRA
+step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
+is twice the ratio. The column `n` holds the rank $r$.
 
 ## The particle half
 
@@ -66,3 +121,18 @@ them. `particle_frontends.csv` sets each frontend beside two POD baselines of th
 their labels, which the frontends train on. `--labelled-pod` runs nothing and trains nothing: it
 writes the `pod_labelled` rows into the `particle_frontends.csv` of `--results-dir` from the run
 stored in `--runs-dir`, and leaves the other rows as they are.
+
+## Tests
+
+```sh
+julia --project -e 'using Pkg; Pkg.test()'
+```
+
+The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group, and its full mode,
+the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the Galerkin models in
+the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
+`scripts/autoencoders.jl` and the checks of the two networks; its full mode is a script run and
+no test. The checks of the DLRA solver run in the `core` group, and the smoke and the full mode of
+`scripts/dlra.jl` in the `slow` group. The `slow` group also runs the smoke mode of
+`scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
+half* and no test.

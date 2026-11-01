@@ -1,6 +1,12 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+GeometricBase = "9a0b12b7-583b-4f04-aa1f-d8551b6addc9"
+GeometricIntegrators = "dcce2d33-59f6-5b8d-9047-0defad88ae06"
+GeometricIntegratorsBase = "71212ab4-08a2-48eb-a02b-4cbad0e9c44a"
+GeometricMachineLearning = "194d25b2-d3f5-49f0-af24-c124f4aa80cc"
+GeometricOptimizers = "fc236c15-5557-4942-aa65-b650f329279e"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PoissonSolvers = "8f9e8900-be71-40de-a258-603fdc860a2d"
@@ -10,6 +16,7 @@ SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VlasovReductionBenchmark = "da7a658c-269d-4c7e-8932-a1d4be7e66f2"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 Aqua = "0.8.18"
