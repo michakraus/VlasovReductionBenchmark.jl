@@ -114,7 +114,7 @@
   `t = 0`, `canonical_flow_comparison(case, initial_condition(case, grid(case, nx, nv)...))`
   gives 662.7 on 32 × 64 and 159.5 on 64 × 128. `autoencoders_hamiltonian.toml` writes `nx` and
   `nv` beside the ratio, so only ratios of one grid compare.
-- **kind:** not verified
+- **kind:** found late
 - **found:** 2026-11-01
 
 ### K11 · The cosine of the canonical-flow record does not tell the canonical flow from the gradient.
@@ -126,29 +126,47 @@
   flipped, in place of the flow changes neither written value beyond round-off. A cosine near
   zero is therefore no evidence that the parity split is not canonical; only the norm ratio
   carries information.
-- **kind:** not verified
+- **kind:** found late
 - **found:** 2026-11-01
 
 ### K12 · The seeds of the weight-tied network give losses that differ only at round-off.
 
 - **location:** `src/autoencoders.jl:193`
 - **evidence:** the seed sets the layers between the frontend and the PSD lift of the core,
-  whose decode–encode is the projection of that lift whatever those layers are. The loss after
-  the frontend's and the lift's `solve!` is bit-identical for seeds 42 and 43 (0.7433233237891245
-  at `n = 16` on 64 × 128), and after 10 steps the last losses differ by `1.5e-11` (the round-1
-  critic review of this branch). The range over the three seeds of the full mode is then near
-  zero for the reconstruction. The seed changes the latent coordinates: on the smoke grid at
-  `n = 4`, the encoded snapshot of seeds 42 and 43 differs by 0.114 at a norm of 0.165.
-- **kind:** not verified
+  whose decode–encode is the projection of that lift whatever those layers are. On I1's linear
+  Landau run (64 × 128, `n = 16`), the loss after the frontend's and the lift's `solve!` is
+  0.7912309074393263 for seeds 42 and 43. In the full mode of `scripts/autoencoders.jl`, the
+  column `loss_stage_I` of the 36 weight-tied data rows is equal for seeds 42, 43 and 44 in each
+  of the 12 groups of one case and one `n`, and `loss_final` differs between the seeds of a group
+  by at most `1.6e-7` relative. The range over the three seeds is then near zero for the
+  reconstruction. The seed changes the latent coordinates: on the smoke grid at `n = 4`, the
+  encoded snapshot of seeds 42 and 43 differs by 0.114 at a norm of 0.165.
+- **kind:** found late
 - **found:** 2026-11-01
 
-### K13 · The memory of the full mode of `scripts/autoencoders.jl` is not measured.
+### K14 · The decoder Jacobian of `decoder_jacobian` and of `ManifoldGalerkinField` infers `Any`, so each field call dispatches at run time.
 
-- **location:** `src/autoencoders.jl:595`
-- **evidence:** `run_autoencoders` keeps every trained reduction in `specs` until
-  `autoencoder_costs` serializes them all for the fresh timing process. Each untied reduction
-  holds its lift and its `Q` factor, two `8192 × 128` `Float64` matrices of 8 MiB each on
-  64 × 128, so the up to 36 untied data rows of the full mode hold about 600 MiB in memory and
-  on disk.
-- **kind:** not verified
+- **location:** `src/autoencoders.jl:81`
+- **evidence:** the same call is at `src/autoencoders.jl:342`. `ForwardDiff.jacobian(r.decoder,
+  z)` has no config, so ForwardDiff picks its chunk size at run time, and
+  `Base.return_types(decoder_jacobian, (typeof(r), Vector{Float64}))` gives `Any[Any]` for both
+  networks at `n = 4` and `n = 32`. The field's own result is concrete. A `JacobianConfig` with a
+  fixed chunk for `Float64` states changes `reduced_step_time` on 64 × 128 by a factor of
+  0.991–1.007 (both networks, `n = 4` and `n = 32`, ratio of the medians of three runs, load
+  21–25), within the noise of the machine. Such a config does not cover the dual states of the
+  Newton Jacobian, which make 20 of 177 field calls in 10 steps at `n = 4`, 114 of 316
+  (weight-tied) and 60 of 217 (untied) at `n = 32`. The online-cost columns of
+  `autoencoders.csv` and `autoencoders_cost.toml` include this dispatch.
+- **kind:** found late
+- **found:** 2026-11-01
+
+### K15 · `ManifoldGalerkinField` allocates two vectors of the grid's size on every call.
+
+- **location:** `src/autoencoders.jl:344`
+- **evidence:** the call allocates `f = r.lift * r.decoder(z)` and `ḟ = similar(f)`
+  (`src/autoencoders.jl:348`), each `nx · nv` long, 64 KiB each on 64 × 128 for a `Float64`
+  state. The `GalerkinField` of the linear baselines (`src/reduction.jl:205`) keeps buffers for
+  a `Float64` state and allocates only for a state of another element type. The effect on
+  the online cost is not measured.
+- **kind:** found late
 - **found:** 2026-11-01
