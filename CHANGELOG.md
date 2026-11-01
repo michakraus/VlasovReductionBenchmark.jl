@@ -67,6 +67,7 @@ so `[Unreleased]` has no target version.
   of the sweep, after the checks of the solver, one row each in `<r>/dlra.csv` with the metrics of
   the linear baselines, the drift of the mass, the state size $r(N_x + N_v) + r^2$, the error of
   the full-rank solver against the full-order run, and the online cost per step, measured in a
-  fresh process. A run that blows up is a row with its status. The test suite runs the solver's
+  fresh process, as a ratio to the cost of a full-order step, which is twice as long. A run that
+  blows up is a row with its status. The test suite runs the solver's
   checks in the `core` group, and the smoke and the full mode of the script in the `slow` group.
 - Random is a direct dependency, for the seeded completion of the initial bases.

@@ -79,7 +79,9 @@ per case and rank, and per test amplitude of the sweep and rank, to `results/dlr
 metrics of the linear baselines against the full-order runs, the state size
 $r(N_x + N_v) + r^2$, the error of the full-rank solver against the same full-order run (the
 difference of the two discretisations), and the online cost per DLRA step, measured in a fresh
-process, to `results/dlra_cost.toml`. The column `n` holds the rank $r$.
+process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the cost of one DLRA
+step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
+is twice the ratio. The column `n` holds the rank $r$.
 
 ## Tests
 

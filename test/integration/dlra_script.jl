@@ -1,7 +1,7 @@
 using TOML
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: background, max_drift, read_run, relative_l2_errors,
-                                reduced_rate
+using VlasovReductionBenchmark: background, fitted_rate, max_drift, read_run,
+                                relative_l2_errors, reduced_rate
 using Test
 
 include("../helpers/thrown.jl")
@@ -115,10 +115,19 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
             full = run_full_rank(run.case, 32, 64)
             r = row(kind, run.case.name, string(run.case.α), string(n))
             errors = relative_l2_errors(dlra.snapshots, S)
+            fluct = relative_l2_errors(dlra.snapshots, S, background(S[:, :, 1]))
             @test argmax(errors) > 1
             @test value(r, "l2_error_max") ≈ maximum(errors) rtol=8eps()
-            @test value(r, "max_l2_error_fluct") ≈
-                  maximum(relative_l2_errors(dlra.snapshots, S, background(S[:, :, 1]))) rtol=8eps()
+            @test value(r, "max_l2_error_fluct") ≈ maximum(fluct) rtol=8eps()
+            # the written series, snapshot by snapshot
+            @test all(isapprox.(parse.(Float64, split(r[col("l2_errors")], ';')), errors;
+                rtol = 8eps()))
+            @test all(isapprox.(
+                parse.(Float64, split(r[col("l2_error_fluct")], ';')), fluct;
+                rtol = 8eps()))
+            # the rate of the full-order run, which differs from the DLRA rate on these rows
+            @test value(r, "rate_full_order") ≈
+                  fitted_rate(run.case.name, run.times, run.E1, window) rtol=8eps()
             @test value(r, "full_rank_l2_error_max") ≈
                   maximum(relative_l2_errors(full.snapshots, S)) rtol=8eps()
             for (name, series) in (("energy_drift", dlra.energy), ("l1_drift", dlra.l1),
@@ -137,6 +146,10 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
         @test all(row(k, c, a, "8")[col("full_rank_l2_error_max")] == e
         for ((k, c, a), e) in zip(RUNS, full_errors))
         @test allunique(full_errors)
+        # nonlinear Landau damping has no fitted rate of the full-order run
+        @test row("data", "nonlinear_landau", "0.5", "4")[col("rate_full_order")] == ""
+        # each run measures the wall time of its own initial factorisation
+        @test allunique(r[col("offline_seconds")] for r in rows)
         # the rows of the two ranks differ in their error
         @test value(row("data", "two_stream", "0.05", "4"), "l2_error_max") !=
               value(row("data", "two_stream", "0.05", "8"), "l2_error_max")
