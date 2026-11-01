@@ -38,14 +38,18 @@
 - **location:** `src/full_order.jl:88`
 - **evidence:** the same call is at `src/full_order.jl:244`, in `measure_step_time`. VlasovMethods
   (`main` at `8937e91`, `src/gridbased/vlasov_poisson_1d1v.jl:125-131`) builds its `ODEProblem`
-  from a parameter `NamedTuple`. `Base.return_types` of the call on the 64 × 128 linear Landau
-  model gives a `Union` of two `UnionAll` types, whose `ODE` type parameter holds
-  `@NamedTuple{arakawa::DataType, v::DataType, G::DataType, …}`; the object built at run time has
-  concrete field types. On 64 × 128 one `RK4()` step takes 2.72–2.76e-4 s, and of the 10.7 kB
-  that a step allocates, about 2 kB is boxing and dynamic dispatch. A function barrier around
-  the step loop changes the time per step by a factor of 0.99–1.06, within the noise of the
-  machine, so the time per step in `full_order_cost.toml` is not distorted. The fix belongs in
-  VlasovMethods.
+  with GeometricEquations, whose `EquationProblem` sets its first type parameter with
+  `superType = eval(typeof(equ).name.name)` (GeometricEquations v0.21.6,
+  `src/problems/equation_problem.jl:82`), which inference does not see through. `Base.return_types`
+  of the call on the 64 × 128 linear Landau model gives a `Union` of two `UnionAll` types over
+  `EquationProblem{_A, …}`. The parameter `NamedTuple` in the `ODE` type parameter,
+  `@NamedTuple{arakawa::DataType, v::DataType, G::DataType, …}`, is also the run-time type, so it
+  is not the cause; VlasovMethods records the cause as its K79 (VlasovMethods PR #99). The object
+  built at run time has concrete field types. On 64 × 128 one `RK4()` step takes 2.72–2.76e-4 s,
+  and of the 10.7 kB that a step allocates, about 2 kB is boxing and dynamic dispatch. A function
+  barrier around the step loop changes the time per step by a factor of 0.99–1.06, within the
+  noise of the machine, so the time per step in `full_order_cost.toml` is not distorted. The fix
+  belongs in GeometricEquations.
 - **kind:** upstream
 - **found:** 2026-10-31
 
@@ -85,7 +89,7 @@
 
 ### K8 · No test shows that the online cost of a DLRA step is measured after its warm-up.
 
-- **location:** `src/dlra.jl:421`
+- **location:** `src/dlra.jl:430`
 - **evidence:** `dlra_step_time` runs `warmup` steps before the timed ones. A mutant that removes
   the line `_, X, S, V = timed_bug_steps(d, X, S, V, warmup)` survives `test/dlra.jl` and
   `test/integration/dlra_script.jl` (`mutate.jl`: SURVIVED, 469 of 469 pass), because the timed
@@ -95,10 +99,10 @@
 
 ### K9 · The row, the CSV writer and the cost loop of the DLRA solver repeat those of the linear baselines.
 
-- **location:** `src/dlra.jl:374`
-- **evidence:** `dlra_row` (`src/dlra.jl:374`) and `write_dlra` (`src/dlra.jl:496`) are
+- **location:** `src/dlra.jl:378`
+- **evidence:** `dlra_row` (`src/dlra.jl:378`) and `write_dlra` (`src/dlra.jl:505`) are
   `baseline_row` (`src/linear_baselines.jl:40`) and `write_baselines`
-  (`src/linear_baselines.jl:163`) with another column tuple, and `dlra_costs` (`src/dlra.jl:462`)
+  (`src/linear_baselines.jl:163`) with another column tuple, and `dlra_costs` (`src/dlra.jl:471`)
   is `reduced_costs` (`src/linear_baselines.jl:123`) with another key, another function to time,
   and another file name, step and method label. A helper that takes the columns, and one that
   takes these settings, would remove about 40 lines; it changes `src/linear_baselines.jl`.

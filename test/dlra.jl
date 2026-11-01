@@ -1,9 +1,10 @@
 using LinearAlgebra: I, norm, svdvals
 using Random: Xoshiro
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: DLRA_STRIDE, DLRA_TIMESTEP, centred_derivative,
+using VlasovReductionBenchmark: DLRA_STRIDE, DLRA_TIMESTEP, background, centred_derivative,
                                 dlra_discretisation, dlra_mode, factored_state,
-                                spectral_derivative, weighted_orthonormal
+                                relative_l2_errors, spectral_derivative,
+                                weighted_orthonormal
 using Test
 
 include("helpers/thrown.jl")
@@ -201,4 +202,40 @@ end
         @test e isa ArgumentError
         @test occursin(Regex("^the rank $r is not in 1:32 for the 32 × 64 grid\$"), e.msg)
     end
+end
+
+@testset "A DLRA row against the full-rank solver" begin
+    # a short nonlinear Landau run, which has no fitted rate, so no fit window matters
+    case = VlasovCase("nonlinear_landau", maxwellian, 0.5, 0.5, 5.5)
+    run = run_case(case, 32, 64)
+    full = run_full_rank(case, 32, 64)
+    row = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, full.snapshots,
+        dlra_mode(true))
+    dlra = run_dlra(case, 32, 64, 4)
+    value(name) = parse(Float64, row[name])
+
+    # the rank-r error against the full-rank solver, relative to the fluctuation of that
+    # solver's run; its maximum is neither at the first snapshot, where both are the initial
+    # state, nor at the last
+    own = relative_l2_errors(dlra.snapshots, full.snapshots,
+        background(full.snapshots[:, :, 1]))
+    @test 1 < argmax(own) < length(own)
+    @test value("max_l2_error_fluct_full_rank") ≈ maximum(own) rtol=8eps()
+    # it differs from the error against the run of the grid scheme, and from the error
+    # relative to f
+    against_run = relative_l2_errors(dlra.snapshots, run.snapshots,
+        background(run.snapshots[:, :, 1]))
+    @test value("max_l2_error_fluct") ≈ maximum(against_run) rtol=8eps()
+    @test abs(maximum(own) - maximum(against_run)) > 0.01 * maximum(own)
+    @test maximum(relative_l2_errors(dlra.snapshots, full.snapshots)) < 0.5 * maximum(own)
+    # the error of the full-rank solver against the run of the grid scheme
+    @test value("full_rank_l2_error_max") ≈
+          maximum(relative_l2_errors(full.snapshots, run.snapshots)) rtol=8eps()
+
+    # a run that stops leaves the column empty
+    broken = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, full.snapshots,
+        dlra_mode(true); perturb = (s, S) -> s == 2 && (S[1] = NaN))
+    @test broken["status"] == "failed at step 2"
+    @test broken["max_l2_error_fluct_full_rank"] == ""
+    @test broken["full_rank_l2_error_max"] != ""
 end

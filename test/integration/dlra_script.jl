@@ -130,6 +130,9 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
                   fitted_rate(run.case.name, run.times, run.E1, window) rtol=8eps()
             @test value(r, "full_rank_l2_error_max") ≈
                   maximum(relative_l2_errors(full.snapshots, S)) rtol=8eps()
+            @test value(r, "max_l2_error_fluct_full_rank") ≈
+                  maximum(relative_l2_errors(dlra.snapshots, full.snapshots,
+                background(full.snapshots[:, :, 1]))) rtol=8eps()
             for (name, series) in (("energy_drift", dlra.energy), ("l1_drift", dlra.l1),
                 ("l2_drift", dlra.l2), ("entropy_drift", dlra.entropy),
                 ("mass_drift", dlra.mass))
@@ -172,8 +175,8 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
             @test parse(Int, r[col("state_size")]) > 0
             @test r[col("full_rank_l2_error_max")] != ""
             for name in ("l2_error_max", "l2_errors", "l2_error_fluct", "max_l2_error_fluct",
-                "rate", "energy_drift", "mass_drift", "online_seconds_per_step",
-                "online_ratio")
+                "rate", "energy_drift", "mass_drift", "max_l2_error_fluct_full_rank",
+                "online_seconds_per_step", "online_ratio")
                 @test r[col(name)] == ""
             end
         end

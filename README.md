@@ -99,7 +99,9 @@ $[0, 40]$ on $64 \times 128$; `--smoke`: 10 % over $[0, 25]$ on $32 \times 64$).
 per case and rank, and per test amplitude of the sweep and rank, to `results/dlra.csv`, with the
 metrics of the linear baselines against the full-order runs, the state size
 $r(N_x + N_v) + r^2$, the error of the full-rank solver against the same full-order run (the
-difference of the two discretisations), and the online cost per DLRA step, measured in a fresh
+difference of the two discretisations), the error of the run of rank $r$ against the full-rank
+solver relative to its fluctuation (`max_l2_error_fluct_full_rank`, the error of the rank
+alone), and the online cost per DLRA step, measured in a fresh
 process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the cost of one DLRA
 step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
 is twice the ratio. The column `n` holds the rank $r$.
@@ -122,6 +124,22 @@ their labels, which the frontends train on. `--labelled-pod` runs nothing and tr
 writes the `pod_labelled` rows into the `particle_frontends.csv` of `--results-dir` from the run
 stored in `--runs-dir`, and leaves the other rows as they are.
 
+## The verdict
+
+```sh
+julia --project scripts/verdict.jl --results-dir <r>... --out results/verdict.md
+```
+
+The script reads the result files of the full modes of the other scripts from the results
+directories `<r>`, whose paths each name the commit that wrote them, as in
+`VlasovReductionBenchmark-I2-760c7a5/results`, and writes one Markdown page. For each case and
+criterion it sets POD, PSD, DLRA and the two autoencoders side by side at each $n$: the
+autoencoders by the median over the seeds, with the range; DLRA by its error against its own
+full-rank solver; the online cost per unit of simulated time. An autoencoder beats the best
+baseline on a criterion when it is strictly better at three of the four $n$. A row whose status
+is not `ok` enters no median and is listed. The last line of the page answers whether the
+Vlasov half of the plan goes on. A missing input file stops the script with its name.
+
 ## Tests
 
 ```sh
@@ -135,4 +153,5 @@ the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke m
 no test. The checks of the DLRA solver run in the `core` group, and the smoke and the full mode of
 `scripts/dlra.jl` in the `slow` group. The `slow` group also runs the smoke mode of
 `scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
-half* and no test.
+half* and no test. The `core` group runs `scripts/verdict.jl` and the rules of its comparison on
+fixture result files.
