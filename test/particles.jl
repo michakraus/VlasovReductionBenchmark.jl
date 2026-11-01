@@ -3,9 +3,10 @@ using LinearAlgebra: norm, svdvals
 using Random: Xoshiro, randperm
 using Test
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: charbonnier_relative, check_pic_energy, failed_runs,
-                                frontend_rows, inverse_cdf, particle_E1, particle_mode,
-                                train_subsample, training_step!, wrap_position
+using VlasovReductionBenchmark: add_labelled_pod, charbonnier_relative, check_pic_energy,
+                                failed_runs, frontend_rows, inverse_cdf, labelled_pod_rows,
+                                particle_E1, particle_mode, train_subsample, training_step!,
+                                wrap_position, write_csv
 using VlasovReductionBenchmark: Adam, CompositeMethod, FactoredStiefelAdam, NeuralNetwork,
                                 SymmetricSymplecticAutoencoder, TrainingOptimizer,
                                 Zygote, optimization_step!
@@ -311,9 +312,10 @@ end
 @testset "Count of the failed training runs" begin
     rows = [
         (method = "sort", status = "ok"), (method = "slot", status = "failed at step 3"),
-        (method = "pairwise", status = "failed at step 0"), (method = "pod", status = "ok")]
+        (method = "pairwise", status = "failed at step 0"), (method = "pod", status = "ok"),
+        (method = "pod_labelled", status = "ok")]
     @test failed_runs(rows) == (2, 3)
-    @test failed_runs(rows[[1, 4]]) == (0, 1)
+    @test failed_runs(rows[[1, 4, 5]]) == (0, 1)
 end
 
 @testset "Rows of the frontends" begin
@@ -329,7 +331,8 @@ end
         seeds = (42, 43), steps = 2)
     @test [(r.method, r.n, r.seed) for r in rows] ==
           [("sort", 4, "42"), ("sort", 4, "43"), ("slot", 4, "42"), ("slot", 4, "43"),
-        ("pairwise", 4, "42"), ("pairwise", 4, "43"), ("pod", 4, "none")]
+        ("pairwise", 4, "42"), ("pairwise", 4, "43"), ("pod", 4, "none"),
+        ("pod_labelled", 4, "none")]
     # every row, :pairwise's included, is on the same Mt particles
     @test all(r -> r.particles == Mt, rows)
     @test rows[1].relative_error ==
@@ -337,23 +340,100 @@ end
     # the baseline: POD with n modes on the same Mt particles, sorted in each snapshot
     Xs, Vs = sorted_snapshots(Z[1:Mt, :], Z[(Mt + 1):end, :])
     σ² = svdvals(vcat(Xs, Vs)) .^ 2
-    @test rows[end].relative_error ≈ sqrt(sum(σ²[5:end]) / sum(σ²)) rtol=1e-12
-    @test rows[end].status == "ok"
+    @test rows[7].relative_error ≈ sqrt(sum(σ²[5:end]) / sum(σ²)) rtol=1e-12
+    @test rows[7].status == "ok"
+    # and POD with n modes of the same snapshots with their labels, which the frontends train on
+    σ²ₗ = svdvals(Z) .^ 2
+    @test rows[8].relative_error ≈ sqrt(sum(σ²ₗ[5:end]) / sum(σ²ₗ)) rtol=1e-12
+    @test (rows[8].particles, rows[8].steps, rows[8].status, rows[8].seconds_per_step) ==
+          (Mt, 0, "ok", 0.0)
+    # the two POD errors differ on these snapshots, so each row shows which matrix it is of
+    @test abs(rows[8].relative_error - rows[7].relative_error) > 1e-3
+    # one labelled row per n, each with its own n
+    @test length(labelled_pod_rows(Z, (2, 4, 6))) == 3
+    for (n, r) in zip((2, 4, 6), labelled_pod_rows(Z, (2, 4, 6)))
+        @test (r.method, r.n, r.seed) == ("pod_labelled", n, "none")
+        @test r.relative_error ≈ sqrt(sum(σ²ₗ[(n + 1):end]) / sum(σ²ₗ)) rtol=1e-12
+    end
+end
+
+@testset "Labelled POD rows added to a frontends file" begin
+    rng = Xoshiro(8)
+    mode = particle_mode(true)
+    M, Nt = mode.particles, 4
+    positions, velocities = rand(rng, M, Nt) .* L, randn(rng, M, Nt)
+    rows = frontend_rows(positions, velocities; train_particles = mode.train_particles,
+        latent_dims = mode.latent_dims, seeds = mode.seeds, steps = 0)
+    labelled = filter(r -> r.method == "pod_labelled", rows)
+    @test [r.n for r in labelled] == collect(mode.latent_dims)
+    mktempdir() do d
+        runs, results = joinpath(d, "runs"), joinpath(d, "results")
+        mkpath(runs)
+        h5open(joinpath(runs, "particles_nonlinear_landau.h5"), "w") do f
+            f["positions"], f["velocities"] = positions, velocities
+            attrs(f)["particles"] = M
+        end
+        mkpath(results)
+        # a file written before the labelled rows existed
+        expected = write_csv(joinpath(d, "expected.csv"), rows)
+        path = write_csv(joinpath(results, "particle_frontends.csv"),
+            filter(r -> r.method != "pod_labelled", rows))
+        old = readlines(path)
+        @test add_labelled_pod(; runs_dir = runs, results_dir = results, smoke = true) ==
+              path
+        # the file is the one a whole run writes: the old rows as they were, then the new
+        @test readlines(path) == readlines(expected)
+        @test readlines(path)[1:length(old)] == old
+        # a second call replaces the labelled rows and adds none
+        add_labelled_pod(; runs_dir = runs, results_dir = results, smoke = true)
+        @test readlines(path) == readlines(expected)
+
+        # a run file of another mode is refused, and the file stays as it is
+        e = thrown(() -> add_labelled_pod(; runs_dir = runs, results_dir = results))
+        @test e isa ErrorException
+        @test occursin(
+            r"^the run in \S+ has 512 particles, not the 4096 of the mode$", e.msg)
+        @test readlines(path) == readlines(expected)
+    end
 end
 
 include("../scripts/particles.jl")
 
 @testset "Script options" begin
     @test parse_options(["--runs-dir", "a", "--results-dir", "b"]) ==
-          (runs_dir = "a", results_dir = "b", smoke = false)
+          (runs_dir = "a", results_dir = "b", smoke = false, labelled_pod = false)
     @test parse_options(["--smoke", "--results-dir", "b", "--runs-dir", "a"]) ==
-          (runs_dir = "a", results_dir = "b", smoke = true)
-    usage = r"^usage: julia --project scripts/particles\.jl --runs-dir <d> --results-dir <r> \[--smoke\]$"
+          (runs_dir = "a", results_dir = "b", smoke = true, labelled_pod = false)
+    @test parse_options(["--runs-dir", "a", "--labelled-pod", "--results-dir", "b"]) ==
+          (runs_dir = "a", results_dir = "b", smoke = false, labelled_pod = true)
+    usage = r"^usage: julia --project scripts/particles\.jl --runs-dir <d> --results-dir <r> \[--smoke\] \[--labelled-pod\]$"
     for args in (["--runs-dir", "a"], ["--runs-dir", "a", "--results-dir", "b", "--x"],
         ["--runs-dir", "a", "--results-dir"])
         e = thrown(() -> parse_options(args))
         @test e isa ArgumentError
         @test occursin(usage, e.msg)
+    end
+
+    # `--labelled-pod` adds the labelled POD rows to the stored results, and trains nothing
+    rng = Xoshiro(9)
+    mode = particle_mode(true)
+    positions, velocities = rand(rng, mode.particles, 3) .* L, randn(rng, mode.particles, 3)
+    mktempdir() do d
+        h5open(joinpath(d, "particles_nonlinear_landau.h5"), "w") do f
+            f["positions"], f["velocities"] = positions, velocities
+            attrs(f)["particles"] = mode.particles
+        end
+        path = write_csv(joinpath(d, "particle_frontends.csv"),
+            [(method = "sort", n = 4, seed = "42", particles = 64, steps = 100,
+                status = "ok", relative_error = 0.5, seconds_per_step = 1.0)])
+        main(["--runs-dir", d, "--results-dir", d, "--smoke", "--labelled-pod"])
+        Z = train_subsample(positions, velocities, mode.train_particles)
+        @test readlines(path) == vcat(
+            ["method,n,seed,particles,steps,status,relative_error,seconds_per_step",
+                "sort,4,42,64,100,ok,0.5,1.0"],
+            ["pod_labelled,$n,none,64,0,ok,$(pod_error(Z, n)),0.0" for n in (4, 8)])
+        @test sort(readdir(d)) ==
+              ["particle_frontends.csv", "particles_nonlinear_landau.h5"]
     end
 end
 

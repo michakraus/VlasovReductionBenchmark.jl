@@ -325,13 +325,27 @@ function train_subsample(positions::AbstractMatrix, velocities::AbstractMatrix, 
 end
 
 """
+    labelled_pod_rows(Z, latent_dims)
+
+The rows of `particle_frontends.csv` with method `pod_labelled`: for each latent dimension `n`
+in `latent_dims`, [`pod_error`](@ref) of `n` modes of the training snapshots `Z` of
+[`train_subsample`](@ref), with their labels, as the frontends see them.
+"""
+function labelled_pod_rows(Z::AbstractMatrix, latent_dims)
+    return [(method = "pod_labelled", n = n, seed = "none", particles = size(Z, 1) ÷ 2,
+                steps = 0, status = "ok", relative_error = pod_error(Z, n),
+                seconds_per_step = 0.0) for n in latent_dims]
+end
+
+"""
     frontend_rows(positions, velocities; train_particles, latent_dims, seeds, steps)
 
 The rows of `particle_frontends.csv`: for each frontend of [`FRONTENDS`](@ref), latent dimension
 in `latent_dims` and seed in `seeds`, [`train_frontend`](@ref) on the
 [`train_subsample`](@ref) of `train_particles` particles; then for each latent dimension `n` the
-baseline, [`pod_error`](@ref) of `n` modes of the same particles sorted in each snapshot. Each
-row records the number of particles it was computed on.
+baseline, [`pod_error`](@ref) of `n` modes of the same particles sorted in each snapshot; then
+the [`labelled_pod_rows`](@ref) of the same particles. Each row records the number of particles
+it was computed on.
 """
 function frontend_rows(positions::AbstractMatrix, velocities::AbstractMatrix;
         train_particles::Integer, latent_dims, seeds, steps::Integer)
@@ -356,8 +370,41 @@ function frontend_rows(positions::AbstractMatrix, velocities::AbstractMatrix;
                 particles = M, steps = 0, status = "ok",
                 relative_error = pod_error(sorted, n), seconds_per_step = 0.0))
     end
+    append!(rows, labelled_pod_rows(Z, latent_dims))
 
     return rows
+end
+
+"""
+    add_labelled_pod(; runs_dir, results_dir, smoke = false)
+
+Write the [`labelled_pod_rows`](@ref) of the PIC run stored in `runs_dir` by
+[`run_particles`](@ref) into `<results_dir>/particle_frontends.csv`, with the settings of
+[`particle_mode`](@ref)`(smoke)`, and train no network. The rows of the other methods stay as
+they are, and the labelled rows take the place of any that the file holds, at its end. It throws
+when the run's number of particles is not that of the mode.
+"""
+function add_labelled_pod(; runs_dir::AbstractString, results_dir::AbstractString,
+        smoke::Bool = false)
+    mode = particle_mode(smoke)
+    run = joinpath(runs_dir, "particles_$(nonlinear_landau().name).h5")
+    positions, velocities, M = h5open(run) do f
+        read(f, "positions"), read(f, "velocities"), attrs(f)["particles"]
+    end
+    M == mode.particles ||
+        error("the run in $run has $M particles, not the $(mode.particles) of the mode")
+    Z = train_subsample(positions, velocities, mode.train_particles)
+
+    path = joinpath(results_dir, "particle_frontends.csv")
+    kept = filter(line -> !startswith(line, "pod_labelled,"), readlines(path))
+    open(path, "w") do io
+        foreach(line -> println(io, line), kept)
+        for row in labelled_pod_rows(Z, mode.latent_dims)
+            println(io, join(values(row), ','))
+        end
+    end
+
+    return path
 end
 
 """
@@ -414,10 +461,11 @@ end
     failed_runs(rows)
 
 The number of training runs among the rows of [`frontend_rows`](@ref) whose status is not
-`"ok"`, and the number of training runs; the rows of the POD baseline are no training runs.
+`"ok"`, and the number of training runs; the rows of the two POD baselines are no training
+runs.
 """
 function failed_runs(rows)
-    trained = filter(r -> r.method != "pod", rows)
+    trained = filter(r -> r.method ∉ ("pod", "pod_labelled"), rows)
 
     return count(r -> r.status != "ok", trained), length(trained)
 end
@@ -442,7 +490,7 @@ The particle half of the benchmark, with the settings of [`PARTICLE_FULL_MODE`](
 `runs_dir`, which asserts the energy and prints the largest momentum drift; the POD mode counts
 ([`pod_modes`](@ref)) of the labelled and of the sorted ([`sorted_snapshots`](@ref)) snapshots of
 all particles at the thresholds of [`POD_THRESHOLDS`](@ref), in
-`<results_dir>/particle_pod_modes.csv`; the frontends and the POD baseline of
+`<results_dir>/particle_pod_modes.csv`; the frontends and the POD baselines of
 [`frontend_rows`](@ref), in `<results_dir>/particle_frontends.csv`, with the count of the
 failed training runs printed; and the cost per step of [`particle_cost`](@ref).
 """

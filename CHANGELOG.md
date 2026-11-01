@@ -37,7 +37,9 @@ so `[Unreleased]` has no target version.
   energy, for the labelled and the position-sorted snapshots of all particles.
   `<r>/particle_frontends.csv` gives the relative reconstruction error of
   `SymmetricSymplecticAutoencoder` with the `:sort`, `:slot` and `:pairwise` frontends, beside
-  POD with $n$ modes of the same particles, sorted in each snapshot. The frontends train on the
+  POD with $n$ modes of the same particles, sorted in each snapshot (`pod`) and with their labels
+  (`pod_labelled`). `--labelled-pod` writes the `pod_labelled` rows into an existing
+  `particle_frontends.csv` from the stored run, with no training. The frontends train on the
   256 particles of smallest initial position (smoke: 64) at $n \in \{4, 8, 16, 32\}$
   (smoke: $\{4, 8\}$), for 2000 steps (smoke: 100) at seeds 42, 43 and 44 (smoke: 42), with
   a Charbonnier relative loss, `FactoredStiefelAdam`/`Adam` at step size $10^{-3}$. A run

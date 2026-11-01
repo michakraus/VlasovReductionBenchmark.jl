@@ -53,7 +53,8 @@ const L = 4π
         @test [(r[1], r[2], r[3]) for r in rows] ==
               [("sort", "4", "42"), ("sort", "8", "42"), ("slot", "4", "42"),
             ("slot", "8", "42"), ("pairwise", "4", "42"), ("pairwise", "8", "42"),
-            ("pod", "4", "none"), ("pod", "8", "none")]
+            ("pod", "4", "none"), ("pod", "8", "none"), ("pod_labelled", "4", "none"),
+            ("pod_labelled", "8", "none")]
         # every frontend, :pairwise included, trains on the 64 particles of the subsample
         @test all(r -> r[4] == "64", rows)
         @test all(r -> r[5] == "100", rows[1:6])
@@ -63,6 +64,8 @@ const L = 4π
         Zs = vcat(sorted_snapshots(Z[1:64, :], Z[65:end, :])...)
         @test parse(Float64, rows[7][7]) ≈ pod_error(Zs, 4) rtol=1e-12
         @test parse(Float64, rows[8][7]) ≈ pod_error(Zs, 8) rtol=1e-12
+        @test parse(Float64, rows[9][7]) ≈ pod_error(Z, 4) rtol=1e-12
+        @test parse(Float64, rows[10][7]) ≈ pod_error(Z, 8) rtol=1e-12
         @test occursin("0 of 6 training runs failed", printed)
 
         cost = TOML.parsefile(joinpath(results, "particle_cost.toml"))

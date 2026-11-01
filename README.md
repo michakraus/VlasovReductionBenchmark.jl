@@ -61,4 +61,8 @@ frontends of `SymmetricSymplecticAutoencoder` on 256 of its particles. The scrip
 to `runs/particles_nonlinear_landau.h5`, and `particle_pod_modes.csv`, `particle_frontends.csv`
 and `particle_cost.toml` to `results/`. It stops with an error when the energy of the run drifts
 by more than $10^{-3}$ relative. `--smoke` runs 512 particles over $[0, 10]$ and trains on 64 of
-them.
+them. `particle_frontends.csv` sets each frontend beside two POD baselines of the same particles:
+`pod`, of the snapshots sorted by position at each time, and `pod_labelled`, of the snapshots with
+their labels, which the frontends train on. `--labelled-pod` runs nothing and trains nothing: it
+writes the `pod_labelled` rows into the `particle_frontends.csv` of `--results-dir` from the run
+stored in `--runs-dir`, and leaves the other rows as they are.
