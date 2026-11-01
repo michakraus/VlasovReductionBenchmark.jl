@@ -101,7 +101,7 @@ end
 
         data = filter(r -> r[col("kind")] == "data", rows)
         sweep = filter(r -> r[col("kind")] == "sweep", rows)
-        # POD and PSD, three cases at their I1 amplitude, n ∈ {4, 8}
+        # POD and PSD, three cases at the amplitude of their full-order run, n ∈ {4, 8}
         @test sort([(r[1], r[3], r[4], r[5]) for r in data]) ==
               sort([(m, c, a, n) for m in ("POD", "PSD")
                     for (c, a) in (("linear_landau", "0.01"), ("nonlinear_landau", "0.5"),

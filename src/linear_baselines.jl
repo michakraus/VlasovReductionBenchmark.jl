@@ -46,7 +46,8 @@ end
     reduced_rate(name, t, E1, landau_window)
 
 The [`fitted_rate`](@ref) of a reduced run and its status: `"ok"`, `"none"` for a case without a
-rate, or the message of a Landau fit that finds fewer than four maxima, with the rate `nothing`.
+rate, or `"fit failed: <message>"` for a fit that throws an `ErrorException`, such as a Landau
+fit that finds fewer than four maxima, with the rate `nothing`.
 A reduced model can lose the oscillation of ``E_1``, and the row records that rather than end
 the script.
 """

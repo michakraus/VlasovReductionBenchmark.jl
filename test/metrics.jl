@@ -43,7 +43,7 @@ end
 end
 
 @testset "Invariants of a state" begin
-    # the closed form of I1's diagnostics test, with the L1 norm beside it
+    # the closed form of the diagnostics test in test/full_order.jl, with the L1 norm beside it
     k = 0.5
     x, v = range(0, 4π; length = 5)[1:4], [0.0, 1.0]
     hx, hv = step(x), 1.0
