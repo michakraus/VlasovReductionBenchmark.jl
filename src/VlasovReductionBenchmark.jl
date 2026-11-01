@@ -4,25 +4,35 @@
 The 1D1V Vlasov–Poisson benchmark of reduced models: the test cases, the full-order runs of
 VlasovMethods' grid scheme that produce their data, the dispersion-relation oracle of their
 linear rates, and the POD and PSD Galerkin baselines with their metrics.
+It also holds the two symplectic autoencoders and their manifold Galerkin models.
 """
 module VlasovReductionBenchmark
 
+using ForwardDiff: ForwardDiff
 using GeometricBase: initialstate, integrate!, reset!
 using GeometricEquations: ODEProblem, functions, parameters
 using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
+using GeometricMachineLearning: GeometricMachineLearning, BilinearStiefelLayer, CPU,
+                                CharbonnierRelativeLoss, MultiModalSymplecticAutoencoder,
+                                NeuralNetwork, PSDArch, SymplecticAutoencoder,
+                                WeightTiedSymplecticAutoencoder
+using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
+                           optimization_step!, solve!
 using HDF5: attrs, h5open
-using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd
+using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd, svdvals
 using PoissonSolvers: FFTWBasis, Potential
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
 using Random: Xoshiro
 using ReducedBasisMethods: CotangentLiftSVD, PODSVD, ReducedBasis
 using ReducedComplexityModeling: Parameter, ParameterSpace
+using Serialization: deserialize, serialize
 using SimpleSolvers: NonlinearSolverException, isconverged, status
 using SpecialFunctions: erfcx
 using TOML: TOML
 using VlasovMethods: VlasovMethods, GridDistribution, VlasovPoisson
+using Zygote: Zygote
 
 "The velocity interval ``[v_a, v_b]`` of every grid."
 const VDOMAIN = (-6.0, 6.0)
@@ -34,6 +44,7 @@ include("parity.jl")
 include("metrics.jl")
 include("reduction.jl")
 include("linear_baselines.jl")
+include("autoencoders.jl")
 include("dlra.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
@@ -47,6 +58,8 @@ export check_pod_optimality, checked_projection_errors, decode, encode, full_ord
        galerkin_field, pod_reduction, psd_basis, psd_reduction, relative_projection_error,
        run_reduced
 export run_linear_baselines
+export AutoencoderReduction, ManifoldGalerkinField, canonical_flow_comparison,
+       decoder_jacobian, run_autoencoders, train_untied, train_weight_tied
 export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra,
        run_dlra_benchmark, run_full_rank
 

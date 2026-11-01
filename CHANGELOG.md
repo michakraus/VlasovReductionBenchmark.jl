@@ -53,6 +53,36 @@ so `[Unreleased]` has no target version.
 - ReducedBasisMethods, ReducedComplexityModeling (for `ParameterSpace`), GeometricEquations (for
   the vector field of VlasovMethods' integrator) and SimpleSolvers (for the convergence of a
   step) are direct dependencies.
+- The two symplectic autoencoders (`train_untied`, `train_weight_tied`): GeometricMachineLearning's
+  untied `SymplecticAutoencoder(128, n)` on the 128 leading coordinates of the PSD basis, and a
+  `MultiModalSymplecticAutoencoder` with one grid modality, `BilinearStiefelLayer(nx, nv, m_x,
+  m_v)` with $m_x m_v = n$ and the weight-tied core
+  `WeightTiedSymplecticAutoencoder(2n, n; n_ambient_layers = 0)`, started from the layer's
+  `solve!` and from `PSDArch(2n, n)` `solve!` for the core's lift. Both map a grid state to $z$
+  and back through `encode` and `decode` (`AutoencoderReduction`), so the metrics of the linear
+  baselines apply unchanged. Each trains with `CompositeMethod(; manifold =
+  FactoredStiefelAdam(), array = Adam())` at step size $10^{-3}$ on the Charbonnier relative
+  reconstruction loss; a loss that becomes non-finite ends the training with its step.
+- The manifold Galerkin projection $\dot z = (\nabla\Psi)^{+} F(f_0 + \Psi(z))$ of VlasovMethods'
+  vector field through the decoder $\Psi$ (`ManifoldGalerkinField`), a least-squares solve
+  against the decoder's Jacobian from ForwardDiff (`decoder_jacobian`), integrated with
+  `ImplicitMidpoint`. A Jacobian of numerical rank below $n$ ends the run with the status
+  `failed at step <s>: rank-deficient decoder`; a Jacobian with a value that is not finite is
+  left to the step's solve, and the run ends with the status `failed at step <s>`.
+- `canonical_flow_comparison`: the cosine and the norm ratio between the canonical flow of the
+  discrete energy in parity coordinates and VlasovMethods' vector field, the record that the
+  parity split is not canonical for Vlasov–Poisson.
+- `scripts/autoencoders.jl --runs-dir <d> --results-dir <r> [--smoke]`: both networks at
+  $n \in \{4, 8, 16, 32\}$ with seeds 42, 43 and 44 and 2000 training steps (smoke: $\{4, 8\}$,
+  seed 42, 100 steps) on the three data runs and on the amplitude sweep, one row each in
+  `<r>/autoencoders.csv` with every metric of the linear baselines, the loss before and after
+  training and the training time; the online cost per reduced step, measured in a fresh process,
+  in `<r>/autoencoders_cost.toml`; and the energy comparison of the linear Landau run at $t = 0$ in
+  `<r>/autoencoders_hamiltonian.toml`. A training whose last loss is not below its first is a
+  row with the status `failed: the loss did not fall (<first> → <last>)`, and the script goes on
+  and counts it. The test
+  suite runs its smoke mode in the `slow` group. GeometricMachineLearning comes from its `main`
+  through `[sources]`; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.
 - A DLRA solver (`run_dlra`, `bug_step`): the factored state $f_0 + X S V^{\mathsf T}$ with bases
   orthonormal in the weighted inner products, stepped by the BUG step with augmented bases and a
   truncation back to rank $r$ (the rank-adaptive BUG of Ceruti, Kusch and Lubich at a fixed rank),

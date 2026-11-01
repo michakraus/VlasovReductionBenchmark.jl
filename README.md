@@ -55,6 +55,27 @@ end in `_fluct`), and the online cost per reduced step, measured in a fresh proc
 `results/linear_baselines_cost.toml`. It stops with an error when the POD projection error rises
 with $n$ or exceeds the PSD error.
 
+## The autoencoders
+
+```sh
+julia --project scripts/autoencoders.jl --runs-dir runs --results-dir results
+```
+
+Two symplectic autoencoders of GeometricMachineLearning reduce the same fluctuations at the same
+latent dimensions: the untied `SymplecticAutoencoder` on the 128 leading PSD coordinates of each
+run, and a multi-modal autoencoder with one grid modality, a `BilinearStiefelLayer` with
+$m_x m_v = n$ modes per parity and a weight-tied core from $2n$ to $n$, whose bases and core lift
+start from their SVD solutions. Each trains for 2000 steps with three seeds (`--smoke`: 100 steps,
+one seed) on the Charbonnier relative reconstruction loss. The reduced model is the manifold
+Galerkin projection $\dot z = (\nabla\Psi)^{+} F(f_0 + \Psi(z))$ of VlasovMethods' vector field
+through the decoder $\Psi$, integrated with `ImplicitMidpoint`. The script writes one row per
+network, case, $n$ and seed, and per test amplitude of the sweep, to `results/autoencoders.csv`,
+with the losses before and after training, the online cost per reduced step to
+`results/autoencoders_cost.toml`, and the cosine and the norm ratio between the canonical flow of
+the energy in parity coordinates and VlasovMethods' vector field to
+`results/autoencoders_hamiltonian.toml`. A training whose loss does not fall, or becomes
+non-finite, is a row with a `failed` status, and the script goes on.
+
 ## The DLRA solver
 
 ```sh
@@ -91,5 +112,7 @@ julia --project -e 'using Pkg; Pkg.test()'
 
 The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group, and its full mode,
 the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the Galerkin models in
-the `slow` group; `Pkg.test()` runs both. The checks of the DLRA solver run in the `core` group,
-and the smoke and the full mode of `scripts/dlra.jl` in the `slow` group.
+the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
+`scripts/autoencoders.jl` and the checks of the two networks; its full mode is a script run and
+no test. The checks of the DLRA solver run in the `core` group, and the smoke and the full mode of
+`scripts/dlra.jl` in the `slow` group.
