@@ -11,6 +11,7 @@ if "core" in GROUPS
     @safetestset "Metrics" include("metrics.jl")
     @safetestset "POD and PSD reduction" include("reduction.jl")
     @safetestset "Autoencoders" include("autoencoders.jl")
+    @safetestset "DLRA solver" include("dlra.jl")
 end
 
 if "slow" in GROUPS
@@ -19,4 +20,5 @@ if "slow" in GROUPS
     @safetestset "Linear baselines script, smoke mode" include("integration/linear_baselines_script.jl")
     @safetestset "Autoencoder oracles" include("verification/autoencoder_oracles.jl")
     @safetestset "Autoencoders script, smoke mode" include("integration/autoencoders_script.jl")
+    @safetestset "DLRA script, smoke and full mode" include("integration/dlra_script.jl")
 end

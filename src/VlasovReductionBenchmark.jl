@@ -20,8 +20,7 @@ using GeometricMachineLearning: GeometricMachineLearning, BilinearStiefelLayer, 
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!, solve!
 using HDF5: attrs, h5open
-using LinearAlgebra: dot, mul!, norm
-using LinearAlgebra: qr, svdvals
+using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd, svdvals
 using PoissonSolvers: FFTWBasis, Potential
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
@@ -46,6 +45,7 @@ include("metrics.jl")
 include("reduction.jl")
 include("linear_baselines.jl")
 include("autoencoders.jl")
+include("dlra.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -60,5 +60,7 @@ export check_pod_optimality, checked_projection_errors, decode, encode, full_ord
 export run_linear_baselines
 export AutoencoderReduction, ManifoldGalerkinField, canonical_flow_comparison,
        decoder_jacobian, run_autoencoders, train_untied, train_weight_tied
+export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra,
+       run_dlra_benchmark, run_full_rank
 
 end

@@ -83,3 +83,21 @@ so `[Unreleased]` has no target version.
   and counts it. The test
   suite runs its smoke mode in the `slow` group. GeometricMachineLearning comes from its `main`
   through `[sources]`; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.
+- A DLRA solver (`run_dlra`, `bug_step`): the factored state $f_0 + X S V^{\mathsf T}$ with bases
+  orthonormal in the weighted inner products, stepped by the BUG step with augmented bases and a
+  truncation back to rank $r$ (the rank-adaptive BUG of Ceruti, Kusch and Lubich at a fixed rank),
+  with an RK4 step per substep, the spectral derivative in $x$, centred differences periodic in $v$,
+  and the Poisson solve of the full-order runs, at the time step 0.025. A full-rank solver of the
+  same discretisation (`run_full_rank`) checks it: at full rank in $x$ the two agree to $10^{-10}$
+  over 20 steps, and the full-rank solver and the DLRA run of rank 16 meet the 2 % rate check of
+  linear Landau damping on $64 \times 128$. The fixed-rank BUG of Ceruti and Lubich, without the
+  augmentation, fails both checks.
+- `scripts/dlra.jl --runs-dir <d> --results-dir <r> [--smoke]`: the DLRA solver at
+  $r \in \{4, 8, 16, 32\}$ (smoke: $\{4, 8\}$) on the three data runs and the two test amplitudes
+  of the sweep, after the checks of the solver, one row each in `<r>/dlra.csv` with the metrics of
+  the linear baselines, the drift of the mass, the state size $r(N_x + N_v) + r^2$, the error of
+  the full-rank solver against the full-order run, and the online cost per step, measured in a
+  fresh process, as a ratio to the cost of a full-order step, which is twice as long. A run that
+  blows up is a row with its status. The test suite runs the solver's
+  checks in the `core` group, and the smoke and the full mode of the script in the `slow` group.
+- Random is a direct dependency, for the seeded completion of the initial bases.

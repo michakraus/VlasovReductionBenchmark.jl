@@ -83,7 +83,29 @@
 - **kind:** found late
 - **found:** 2026-11-01
 
-### K8 · The norm ratio of the canonical-flow record depends on the grid.
+### K8 · No test shows that the online cost of a DLRA step is measured after its warm-up.
+
+- **location:** `src/dlra.jl:421`
+- **evidence:** `dlra_step_time` runs `warmup` steps before the timed ones. A mutant that removes
+  the line `_, X, S, V = timed_bug_steps(d, X, S, V, warmup)` survives `test/dlra.jl` and
+  `test/integration/dlra_script.jl` (`mutate.jl`: SURVIVED, 469 of 469 pass), because the timed
+  steps give a time per step with or without it; only the size of that time differs.
+- **kind:** not verified
+- **found:** 2026-11-01
+
+### K9 · The row, the CSV writer and the cost loop of the DLRA solver repeat those of the linear baselines.
+
+- **location:** `src/dlra.jl:374`
+- **evidence:** `dlra_row` (`src/dlra.jl:374`) and `write_dlra` (`src/dlra.jl:496`) are
+  `baseline_row` (`src/linear_baselines.jl:40`) and `write_baselines`
+  (`src/linear_baselines.jl:163`) with another column tuple, and `dlra_costs` (`src/dlra.jl:462`)
+  is `reduced_costs` (`src/linear_baselines.jl:123`) with another key, another function to time,
+  and another file name, step and method label. A helper that takes the columns, and one that
+  takes these settings, would remove about 40 lines; it changes `src/linear_baselines.jl`.
+- **kind:** found late
+- **found:** 2026-11-01
+
+### K10 · The norm ratio of the canonical-flow record depends on the grid.
 
 - **location:** `src/autoencoders.jl:460`
 - **evidence:** `canonical_flow_comparison` divides the norm of the canonical flow of the
@@ -95,7 +117,7 @@
 - **kind:** not verified
 - **found:** 2026-11-01
 
-### K9 · The cosine of the canonical-flow record does not tell the canonical flow from the gradient.
+### K11 · The cosine of the canonical-flow record does not tell the canonical flow from the gradient.
 
 - **location:** `src/autoencoders.jl:460`
 - **evidence:** the canonical flow `J ∇H` and the gradient `∇H` have the same norm, and both are
@@ -107,7 +129,7 @@
 - **kind:** not verified
 - **found:** 2026-11-01
 
-### K10 · The seeds of the weight-tied network give losses that differ only at round-off.
+### K12 · The seeds of the weight-tied network give losses that differ only at round-off.
 
 - **location:** `src/autoencoders.jl:193`
 - **evidence:** the seed sets the layers between the frontend and the PSD lift of the core,
@@ -120,7 +142,7 @@
 - **kind:** not verified
 - **found:** 2026-11-01
 
-### K11 · The memory of the full mode of `scripts/autoencoders.jl` is not measured.
+### K13 · The memory of the full mode of `scripts/autoencoders.jl` is not measured.
 
 - **location:** `src/autoencoders.jl:593`
 - **evidence:** `run_autoencoders` keeps every trained reduction in `specs` until
