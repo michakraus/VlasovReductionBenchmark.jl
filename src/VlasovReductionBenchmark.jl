@@ -12,8 +12,7 @@ using GeometricEquations: ODEProblem, functions, parameters
 using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
 using HDF5: attrs, h5open
-using LinearAlgebra: dot, mul!, norm
-using LinearAlgebra: Diagonal, opnorm, qr, svd
+using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd
 using PoissonSolvers: FFTWBasis, Potential
 using Printf: @printf, @sprintf
 using QuadGK: quadgk

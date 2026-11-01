@@ -207,13 +207,13 @@ function bug_step(d, X::AbstractMatrix, S::AbstractMatrix, V::AbstractMatrix, h)
     X̂ = weighted_orthonormal(hcat(K, X), hx)
     V̂ = weighted_orthonormal(hcat(L, V), hv)
     Cx = hx .* (X̂' * (d.Dx * X̂))
-    Mv = hv .* (V̂' * (d.v .* V̂))
-    Md = hv .* ((d.Dv * V̂)' * V̂)
-    b = hv .* (V̂' * d.Dvf0)
-    c = hv .* vec(sum(V̂; dims = 1))
+    M̂v = hv .* (V̂' * (d.v .* V̂))
+    M̂d = hv .* ((d.Dv * V̂)' * V̂)
+    b̂ = hv .* (V̂' * d.Dvf0)
+    ĉ = hv .* vec(sum(V̂; dims = 1))
     Ŝ = rk4((hx .* (X̂' * X)) * S * (hv .* (V' * V̂)), h) do S
-        φx = electric_field(d, X̂ * S, c)
-        -Cx * S * Mv .+ (hx .* (X̂' * φx)) * b' .+ (hx .* (X̂' * (φx .* X̂))) * S * Md
+        φx = electric_field(d, X̂ * S, ĉ)
+        -Cx * S * M̂v .+ (hx .* (X̂' * φx)) * b̂' .+ (hx .* (X̂' * (φx .* X̂))) * S * M̂d
     end
     all(isfinite, Ŝ) || return X̂, Ŝ, V̂
 
