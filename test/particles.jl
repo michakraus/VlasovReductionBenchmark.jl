@@ -374,7 +374,7 @@ end
             attrs(f)["particles"] = M
         end
         mkpath(results)
-        # a file written before the labelled rows existed
+        # a file with no labelled rows
         expected = write_csv(joinpath(d, "expected.csv"), rows)
         path = write_csv(joinpath(results, "particle_frontends.csv"),
             filter(r -> r.method != "pod_labelled", rows))
