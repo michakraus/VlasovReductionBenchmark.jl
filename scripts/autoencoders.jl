@@ -9,9 +9,9 @@
 # case, n and seed, and per network, n, seed and test amplitude of the sweep, to
 # <r>/autoencoders.csv, with the online cost of each reduced model, measured in a fresh process,
 # in <r>/autoencoders_cost.toml, and the comparison of the canonical flow of the energy with the
-# Vlasov field in <r>/autoencoders_hamiltonian.toml. A training whose loss becomes non-finite and
-# a reduced run that stops are rows with their status; the script throws when a training's last
-# loss is not below its first.
+# Vlasov field in <r>/autoencoders_hamiltonian.toml. A training whose loss becomes non-finite or
+# does not fall, and a reduced run that stops, are rows with their status; the script goes on and
+# counts them.
 
 using VlasovReductionBenchmark: run_autoencoders
 

@@ -147,7 +147,7 @@ function charbonnier_reconstruction(x̂, x, ε)
 end
 
 """
-    train_network!(loss, ps, steps; label, step_size = TRAINING_STEP_SIZE)
+    train_network!(loss, ps, steps; step_size = TRAINING_STEP_SIZE)
 
 Take `steps` steps of `TrainingOptimizer` with
 `CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam())` and `step_size` on
@@ -155,11 +155,11 @@ Take `steps` steps of `TrainingOptimizer` with
 first step and the loss `last` after the last step.
 
 A loss that is not finite before step `s + 1` ends the training with the status
-`"failed at step <s>"`. Otherwise the status is `"ok"`, and it throws an error naming `label`
-when the last loss is not below the first.
+`"failed at step <s>"`. A last loss that is not below the first gives the status
+`"failed: the loss did not fall (<first> → <last>)"`: a training that does not move is a failed
+training. Otherwise the status is `"ok"`.
 """
-function train_network!(loss, ps, steps::Integer; label::AbstractString,
-        step_size::Real = TRAINING_STEP_SIZE)
+function train_network!(loss, ps, steps::Integer; step_size::Real = TRAINING_STEP_SIZE)
     optimizer = TrainingOptimizer(ps;
         algorithm = CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam()),
         linesearch = step_size)
@@ -174,10 +174,10 @@ function train_network!(loss, ps, steps::Integer; label::AbstractString,
     last_loss = loss(ps)
     isfinite(last_loss) ||
         return (status = "failed at step $steps", first = first_loss, last = last_loss)
-    last_loss < first_loss || error(
-        "$label: the training loss went from $first_loss to $last_loss, not below")
+    status = last_loss < first_loss ? "ok" :
+             "failed: the loss did not fall ($first_loss → $last_loss)"
 
-    return (status = "ok", first = first_loss, last = last_loss)
+    return (status = status, first = first_loss, last = last_loss)
 end
 
 """
@@ -242,7 +242,7 @@ function untied_reduction(nn, Φ::AbstractMatrix, f0::AbstractVector, nx::Intege
 end
 
 """
-    train_weight_tied(S, f0, n; seed, steps, step_size = TRAINING_STEP_SIZE, label)
+    train_weight_tied(S, f0, n; seed, steps, step_size = TRAINING_STEP_SIZE)
 
 Build the [`weight_tied_network`](@ref) of the fluctuations of the `nx × nv × m` snapshots `S`
 around `f0` and train it with [`train_network!`](@ref) on GeometricMachineLearning's
@@ -250,21 +250,20 @@ around `f0` and train it with [`train_network!`](@ref) on GeometricMachineLearni
 [`weight_tied_reduction`](@ref), the `training` result and the `network`.
 """
 function train_weight_tied(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer;
-        seed::Integer, steps::Integer, step_size::Real = TRAINING_STEP_SIZE,
-        label::AbstractString)
+        seed::Integer, steps::Integer, step_size::Real = TRAINING_STEP_SIZE)
     nx, nv, _ = size(S)
     G = fluctuation(S, f0)
     nn = weight_tied_network(G, n; seed)
     loss = CharbonnierRelativeLoss()
     training = train_network!(ps -> loss(nn.model, ps, :grid, G), nn.params, steps;
-        label, step_size)
+        step_size)
 
     return (reduction = weight_tied_reduction(nn, f0, nx, nv), training = training,
         network = nn)
 end
 
 """
-    train_untied(S, f0, n; seed, steps, step_size = TRAINING_STEP_SIZE, label)
+    train_untied(S, f0, n; seed, steps, step_size = TRAINING_STEP_SIZE)
 
 Build GeometricMachineLearning's `SymplecticAutoencoder(128, n)` with `Xoshiro(seed)` on the
 [`PSD_COORDINATES`](@ref) coordinates of the factor ``Φ`` of [`psd_basis`](@ref) of the parity
@@ -274,8 +273,7 @@ snapshots of `S` around `f0`, and train it with [`train_network!`](@ref) on the
 `training` result and the `network`.
 """
 function train_untied(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer;
-        seed::Integer, steps::Integer, step_size::Real = TRAINING_STEP_SIZE,
-        label::AbstractString)
+        seed::Integer, steps::Integer, step_size::Real = TRAINING_STEP_SIZE)
     nx, nv, _ = size(S)
     W = parity_snapshots(S, f0)
     Φ = psd_basis(W, PSD_COORDINATES)
@@ -284,7 +282,7 @@ function train_untied(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer
         rng = Xoshiro(seed))
     ε = CharbonnierRelativeLoss().ε
     training = train_network!(ps -> charbonnier_reconstruction(nn.model(Y, ps), Y, ε),
-        nn.params, steps; label, step_size)
+        nn.params, steps; step_size)
 
     return (reduction = untied_reduction(nn, Φ, f0, nx, nv), training = training,
         network = nn)
@@ -564,9 +562,9 @@ writes a [`data_row`](@ref) with the seed, the loss before the first training st
 I for the weight-tied network) and after the last step, and the time of the build and the
 training as the offline cost. For the amplitude sweep it
 trains on the three training runs together, around the background of the first, and writes
-the largest relative error at each test amplitude. A training whose loss becomes non-finite
-is a row with its status and empty metrics, as is a reduced run that stops; the other rows go
-on. The online cost of each data row that completes comes from [`autoencoder_costs`](@ref).
+the largest relative error at each test amplitude. A training that fails, whose loss becomes
+non-finite or does not fall (see [`train_network!`](@ref)), is a row with its status and empty
+metrics, as is a reduced run that stops; the other rows go on. The online cost of each data row that completes comes from [`autoencoder_costs`](@ref).
 
 It writes `<results_dir>/autoencoders.csv`, and the [`canonical_flow_comparison`](@ref) of the
 first snapshot of the linear Landau run to `<results_dir>/autoencoders_hamiltonian.toml`,
@@ -574,7 +572,7 @@ prints the number of rows and of failed rows, and returns the rows. `perturb` go
 [`run_reduced`](@ref) and `step_size` to every training; they let a test break the runs.
 
 It throws an error when the grid of `full_order_cost.toml` or of a run file is not the grid of
-the mode, or when a training's last loss is not below its first.
+the mode.
 """
 function run_autoencoders(; runs_dir::AbstractString, results_dir::AbstractString,
         smoke::Bool = false, perturb = nothing, step_size::Real = TRAINING_STEP_SIZE)
@@ -607,7 +605,7 @@ function run_autoencoders(; runs_dir::AbstractString, results_dir::AbstractStrin
         end
         for (network, build) in NETWORKS, n in mode.ns, seed in mode.seeds
             label = "$network, $file, n = $n, seed $seed"
-            timed = @timed build(S, f0, n; seed, steps = mode.steps, step_size, label)
+            timed = @timed build(S, f0, n; seed, steps = mode.steps, step_size)
             trained, offline = timed.value, timed.time
             losses = (seed = seed, loss_stage_I = trained.training.first,
                 loss_final = trained.training.last)
@@ -639,7 +637,7 @@ function run_autoencoders(; runs_dir::AbstractString, results_dir::AbstractStrin
     f0 = background(training_runs[1].snapshots[:, :, 1])
     for (network, build) in NETWORKS, n in mode.ns, seed in mode.seeds
         label = "$network, sweep, n = $n, seed $seed"
-        timed = @timed build(S, f0, n; seed, steps = mode.steps, step_size, label)
+        timed = @timed build(S, f0, n; seed, steps = mode.steps, step_size)
         trained, offline = timed.value, timed.time
         losses = (seed = seed, loss_stage_I = trained.training.first,
             loss_final = trained.training.last)

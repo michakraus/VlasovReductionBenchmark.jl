@@ -77,6 +77,8 @@ so `[Unreleased]` has no target version.
   `<r>/autoencoders.csv` with every metric of the linear baselines, the loss before and after
   training and the training time; the online cost per reduced step, measured in a fresh process,
   in `<r>/autoencoders_cost.toml`; and the energy comparison of the linear Landau run at $t = 0$ in
-  `<r>/autoencoders_hamiltonian.toml`. It asserts that each training lowers its loss. The test
+  `<r>/autoencoders_hamiltonian.toml`. A training whose last loss is not below its first is a
+  row with the status `failed: the loss did not fall (<first> → <last>)`, and the script goes on
+  and counts it. The test
   suite runs its smoke mode in the `slow` group. GeometricMachineLearning comes from its `main`
   through `[sources]`; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.

@@ -73,8 +73,8 @@ network, case, $n$ and seed, and per test amplitude of the sweep, to `results/au
 with the losses before and after training, the online cost per reduced step to
 `results/autoencoders_cost.toml`, and the cosine and the norm ratio between the canonical flow of
 the energy in parity coordinates and VlasovMethods' vector field to
-`results/autoencoders_hamiltonian.toml`. It stops with an error when a training does not lower
-its loss.
+`results/autoencoders_hamiltonian.toml`. A training whose loss does not fall, or becomes
+non-finite, is a row with a `failed` status, and the script goes on.
 
 ## Tests
 

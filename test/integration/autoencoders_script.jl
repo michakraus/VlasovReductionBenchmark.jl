@@ -151,7 +151,7 @@ end
             ("untied", train_untied, two_stream, "0.05", 4))
             S = run.snapshots
             f0 = background(S[:, :, 1])
-            trained = build(S, f0, n; seed = 42, steps = 100, label = method)
+            trained = build(S, f0, n; seed = 42, steps = 100)
             r = row("data", method, alpha, string(n))
             @test value(r, "loss_stage_I") ≈ trained.training.first rtol=1e-8
             @test value(r, "loss_final") ≈ trained.training.last rtol=1e-8
@@ -168,8 +168,7 @@ end
         train = [read_run(joinpath(runs, "linear_landau_alpha$α.h5")).snapshots
                  for α in (0.005, 0.01, 0.02)]
         f0 = background(train[1][:, :, 1])
-        trained = train_untied(cat(train...; dims = 3), f0, 4; seed = 42, steps = 100,
-            label = "sweep")
+        trained = train_untied(cat(train...; dims = 3), f0, 4; seed = 42, steps = 100)
         test = read_run(joinpath(runs, "linear_landau_alpha0.03.h5"))
         reduced = run_reduced(trained.reduction, test.case, 32, 64, test.snapshots[:, :, 1])
         errors = relative_l2_errors(reduced.snapshots, test.snapshots)
@@ -204,15 +203,22 @@ end
             TOML.parsefile(joinpath(broken, "autoencoders_cost.toml")), "rows",
             []))
 
-        # a training whose loss does not move stops the script with its labelled message
-        e = thrown(() -> redirect_stdout(devnull) do
-            run_autoencoders(; runs_dir = runs, results_dir = broken, smoke = true,
-                step_size = nextfloat(0.0))
-        end)
-        @test e isa ErrorException
-        @test occursin(
-            r"^untied, linear_landau_alpha0\.01\.h5, n = 4, seed 42: the training loss went from (\S+) to \1, not below$",
-            e.msg)
+        # a training whose loss does not move is a failed row, and the script goes on
+        output = joinpath(root, "still.txt")
+        open(output, "w") do io
+            redirect_stdout(io) do
+                run_autoencoders(; runs_dir = runs, results_dir = broken, smoke = true,
+                    step_size = nextfloat(0.0))
+            end
+        end
+        header, rows = read_csv(joinpath(broken, "autoencoders.csv"))
+        @test length(rows) == 20
+        for r in rows
+            @test occursin(r"^failed: the loss did not fall \((\S+) → \1\)$", r[col("status")])
+            @test r[col("loss_final")] == r[col("loss_stage_I")]
+            @test r[col("l2_error_max")] == r[col("projection_error")] == ""
+        end
+        @test occursin("20 rows, 20 failed", read(output, String))
 
         # a training whose loss becomes non-finite is a row with its status, and the script
         # goes on

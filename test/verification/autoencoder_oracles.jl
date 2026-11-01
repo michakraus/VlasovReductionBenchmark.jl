@@ -11,8 +11,6 @@ using VlasovReductionBenchmark: NETWORKS, VlasovCase, fluctuation, maxwellian,
 using Test
 using Zygote: Zygote
 
-include("../helpers/thrown.jl")
-
 const GML = GeometricMachineLearning
 const NX, NV = 32, 64
 
@@ -42,7 +40,7 @@ function arakawa(f::AbstractVector)
 end
 
 # Both networks after 20 training steps, at n = 4.
-const TRAINED = Dict(name => build(S, F0, 4; seed = 42, steps = 20, label = name)
+const TRAINED = Dict(name => build(S, F0, 4; seed = 42, steps = 20)
 for (name, build) in NETWORKS)
 
 @testset "The weight-tied network" begin
@@ -136,12 +134,7 @@ end
         return stiefel_leaves(ps)
     end
     nn = weight_tied_network(G, 4; seed = 42)
-    try
-        train_network!(p -> loss(nn.model, p, :grid, G), params(nn), 3; label = "three")
-    catch e
-        # three steps need not lower the loss; the leaves have taken them either way
-        e isa ErrorException || rethrow()
-    end
+    train_network!(p -> loss(nn.model, p, :grid, G), params(nn), 3)
     trained = stiefel_leaves(params(nn))
     factored = stepped(CompositeMethod(; manifold = FactoredStiefelAdam(), array = Adam()))
     plain = stepped(CompositeMethod(; manifold = Adam(), array = Adam()))
@@ -149,13 +142,12 @@ end
     @test !all(parent(a) ≈ parent(b) for (a, b) in zip(trained, plain))
 
     # a training that does not move: the step size that GeometricOptimizers takes closest to zero
+    # is a failed training, whose status names its two equal losses
     for (name, build) in NETWORKS
-        e = thrown(() -> build(S, F0, 4; seed = 42, steps = 3, step_size = nextfloat(0.0),
-            label = "$name, still"))
-        @test e isa ErrorException
-        @test occursin(
-            Regex("^$name, still: the training loss went from (\\S+) to \\1, not below\$"),
-            e.msg)
+        still = build(S, F0, 4; seed = 42, steps = 3, step_size = nextfloat(0.0))
+        @test occursin(r"^failed: the loss did not fall \((\S+) → \1\)$",
+            still.training.status)
+        @test still.training.last == still.training.first
     end
 
     # a loss that becomes non-finite ends the training with the step after which it is
@@ -172,7 +164,7 @@ end
         3, 4, "failed at step 3"),
         (10, 1, "failed at step 0"))
         ps = deepcopy(params(nn))
-        result = train_network!(counting_loss(Ref(0), nan_from), ps, steps; label = "nan")
+        result = train_network!(counting_loss(Ref(0), nan_from), ps, steps)
         @test result.status == status
         @test !isfinite(result.last)
         # the first loss is the loss before the first step
