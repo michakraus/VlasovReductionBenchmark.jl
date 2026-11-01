@@ -524,11 +524,12 @@ First it checks the solver: [`check_full_rank_agreement`](@ref) of the three cas
 grid ``32 × 64``, and [`check_dlra_rates`](@ref) on the grid of the mode. Then for each run it
 runs the full-rank solver, whose largest relative ``L^2`` error against the run each of its rows
 holds, and writes a [`dlra_data_row`](@ref) of kind `"data"` (the cases) or `"sweep"` (the test
-amplitudes) per rank, which also holds the error of the rank against that solver. The online cost of each row that completes comes from
-[`dlra_costs`](@ref), as a ratio to `<results_dir>/full_order_cost.toml`; the ratio is per step,
-and a DLRA step is half the full-order step. It writes `<results_dir>/dlra.csv`, prints the
-number of rows and of failed runs, and returns the rows. `perturb` goes to every
-[`run_dlra`](@ref) of a row; it lets a test break the runs.
+amplitudes) per rank, which also holds the error of the rank against that solver. The online
+cost of each row that completes comes from [`dlra_costs`](@ref), as a ratio to
+`<results_dir>/full_order_cost.toml`; the ratio is per step, and a DLRA step is half the
+full-order step. It writes `<results_dir>/dlra.csv`, prints the number of rows and of failed
+runs, and returns the rows. `perturb` goes to every [`run_dlra`](@ref) of a row; it lets a test
+break the runs.
 
 It throws an error when a check fails, or when the grid of `full_order_cost.toml` or of a run file
 is not the grid of the mode.

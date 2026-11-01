@@ -471,6 +471,17 @@ end
         w = only(verdict_answer(loaded(fixture(root; over))).wins)
         @test (w.A, w.C) == (false, false)
     end
+    # bound A reads the median rate of the seeds, neither the best nor the worst seed: with one
+    # seed of three within 2 % it is missed, with two of three it is met
+    for (k, met) in ((1, false), (2, true))
+        over = Dict(("weight-tied", "linear_landau", n, s) => Dict(
+                        "max_l2_error_fluct" => "0.5", "rate" => i ≤ k ? good : bad)
+        for n in DIMS for (i, s) in enumerate(SEEDS))
+        mktempdir() do root
+            w = only(verdict_answer(loaded(fixture(root; over))).wins)
+            @test (w.A, w.C) == (met, true)
+        end
+    end
     # bound C counts only n ≤ 16: below POD's n = 32 error at n = 32 alone is not enough
     over = merge(
         Dict(("weight-tied", "linear_landau", n, s) => Dict(
@@ -603,8 +614,41 @@ end
         @test occursin(
             "- **Failed rows**, which enter no median and no comparison: none.\n",
             page)
+        # the sweep rows of the fixture hold no rate, so bound A cannot hold in the sweep
         @test occursin(
-            "- **Empty rates**, which count as not better on the rate criterion: none.\n", page)
+            "- **Empty rates**, which count as not better on the rate criterion:\n" *
+            "  - DLRA, sweep: 8 rows, no rate\n  - POD, sweep: 8 rows, no rate\n" *
+            "  - PSD, sweep: 8 rows, no rate\n  - untied, sweep: 24 rows, no rate\n" *
+            "  - weight-tied, sweep: 24 rows, no rate\n",
+            page)
+        @test occursin(
+            "The sweep rows of the autoencoders hold no rate, so bound A cannot hold in the sweep.",
+            page)
+        # no factor of the page is infinite, so no note on a zero median
+        @test !occursin("×∞", page)
+        @test !occursin("A factor of ∞", page)
+    end
+    # sweep rows of the autoencoders that hold a rate: bound A can hold in the sweep, and only
+    # the sweep rows of the baselines are empty
+    rated = Dict((a, "sweep", α, n, s) => Dict("rate_status" => "ok", "rate" => "-0.15",
+                     "rate_full_order" => "-0.15")
+    for a in ("untied", "weight-tied") for α in SWEEP_ALPHAS for n in DIMS for s in SEEDS)
+    mktempdir() do root
+        out = joinpath(root, "verdict.md")
+        write_verdict(; results_dirs = fixture(root; over = rated), out)
+        page = read(out, String)
+        @test !occursin("bound A cannot hold in the sweep", page)
+        @test occursin("  - PSD, sweep: 8 rows, no rate\n\n", page)
+        @test !occursin("untied, sweep:", page)
+    end
+    # a rate in the sweep rows of a baseline alone leaves bound A out of reach in the sweep
+    rated = Dict(("POD", "sweep", α, n, "") =>
+                     Dict("rate_status" => "ok", "rate" => "-0.15",
+                         "rate_full_order" => "-0.15") for α in SWEEP_ALPHAS for n in DIMS)
+    mktempdir() do root
+        out = joinpath(root, "verdict.md")
+        write_verdict(; results_dirs = fixture(root; over = rated), out)
+        @test occursin("bound A cannot hold in the sweep", read(out, String))
     end
     mktempdir() do root
         out = joinpath(root, "verdict.md")
@@ -618,6 +662,15 @@ end
         end
         @test !occursin("two_stream, α = 0.05, n = 16, seed 42\n", page)
         @test occursin("The cause of the weight-tied two-stream rows (I3)", page)
+        # the zero energy drift of the stationary rows gives a factor ∞, and its table says
+        # where it comes from; the L¹ drift of 1.4e-16 gives a finite factor and no note
+        section(title) = first(split(last(split(page, "### $title\n")), "### "))
+        note = "- A factor of ∞ comes from a median of zero. The *Stationary rows* of the " *
+               "*Findings* list the rows whose reduced state does not move.\n"
+        @test occursin("yes (×∞)", section("two_stream: energy drift"))
+        @test occursin(note, section("two_stream: energy drift"))
+        @test !occursin("×∞", section("two_stream: L¹ drift"))
+        @test !occursin(note, section("two_stream: L¹ drift"))
         @test occursin(
             "The range of the error is wider than 1 % in: two_stream, data, α = 0.05, n = 32.\n",
             page)
@@ -632,6 +685,30 @@ end
         page = read(out, String)
         @test occursin("  - untied, data, nonlinear_landau, α = 0.5, n = 4, seed 42\n", page)
         @test !occursin("The cause of", page)
+    end
+    # a zero median energy drift in rows that are not stationary: the note names no finding
+    over = Dict(("weight-tied", "two_stream", n, s) => Dict("energy_drift" => "0.0")
+    for n in (4, 8) for s in SEEDS)
+    mktempdir() do root
+        out = joinpath(root, "verdict.md")
+        write_verdict(; results_dirs = fixture(root; over), out)
+        page = read(out, String)
+        @test occursin("yes (×∞)", page)
+        @test occursin("- A factor of ∞ comes from a median of zero.\n", page)
+        @test !occursin("Stationary rows", page)
+    end
+    # every baseline without a rate: the factor ∞ of the rate comes from an infinite best
+    # baseline, not from a median of zero, so no note
+    over = Dict((m, "linear_landau", n, "") => Dict("rate_status" => "fit failed")
+    for m in VlasovReductionBenchmark.VERDICT_BASELINES for n in DIMS)
+    mktempdir() do root
+        out = joinpath(root, "verdict.md")
+        write_verdict(; results_dirs = fixture(root; over), out)
+        page = read(out, String)
+        @test occursin(
+            "| 4 | ∞ | ∞ | ∞ | 0.5 [0.5, 0.5] | 0.5 [0.5, 0.5] | POD ∞ | yes (×∞) |",
+            page)
+        @test !occursin("A factor of ∞", page)
     end
 end
 

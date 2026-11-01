@@ -128,8 +128,9 @@ end
 
 The path of each file of [`VERDICT_FILES`](@ref) among the directories `results_dirs`, and the
 `full_order_cost.toml` beside each CSV file of a Vlasov method, with the
-[`directory_commit`](@ref) of the directory of each file of [`VERDICT_FILES`](@ref). A file of [`VERDICT_FILES`](@ref) without a
-partner is looked for in every directory; one with a partner in the directory of that partner.
+[`directory_commit`](@ref) of the directory of each file of [`VERDICT_FILES`](@ref). A file of
+[`VERDICT_FILES`](@ref) without a partner is looked for in every directory; one with a partner
+in the directory of that partner.
 It throws an error naming the file when a file is missing, or when more than one directory holds
 a file that is looked for in every directory.
 """
@@ -418,8 +419,14 @@ function format_stats(s, method)
     return "$(format_value(s.median)) [$(format_value(s.lo)), $(format_value(s.hi))]"
 end
 
-"The table and the summary lines of the [`comparison`](@ref) `cmp`, written to `io`."
-function write_comparison(io, cmp)
+"""
+    write_comparison(io, cmp; stationary = false)
+
+The table and the summary lines of the [`comparison`](@ref) `cmp`, written to `io`. Where a
+factor is infinite because the median of an autoencoder is zero, a note says so, and with
+`stationary` it points to the stationary rows of the findings.
+"""
+function write_comparison(io, cmp; stationary = false)
     methods = (VERDICT_BASELINES..., VERDICT_AUTOENCODERS...)
     println(io, "| n | ", join(methods, " | "), " | best baseline | ",
         join(("$a better" for a in VERDICT_AUTOENCODERS), " | "), " |")
@@ -439,6 +446,11 @@ function write_comparison(io, cmp)
             b.beats ? "beats the best baseline by a factor of $(format_value(b.factor))." :
             "does not beat the best baseline.")
     end
+    any(c -> any(a -> c.better[a] && iszero(c.stats[a].median), VERDICT_AUTOENCODERS), cmp) &&
+        println(io, "- A factor of ∞ comes from a median of zero.",
+            stationary ?
+            " The *Stationary rows* of the *Findings* list the rows whose " *
+            "reduced state does not move." : "")
     println(io)
 end
 
@@ -589,6 +601,14 @@ function write_findings(io, data)
              for r in data.rows
              if (r["kind"], r["status"]) == ("data", "ok") &&
                     haskey(RATE_TOLERANCE, r["case"]) && r["rate_status"] != "ok"]
+    sweep = Dict{NTuple{2, String}, Int}()
+    for r in data.rows
+        ((r["kind"], r["status"]) == ("sweep", "ok") && r["rate_status"] != "ok") ||
+            continue
+        k = (r["method"], isempty(r["rate_status"]) ? "no rate" : r["rate_status"])
+        sweep[k] = get(sweep, k, 0) + 1
+    end
+    append!(empty, ["$m, sweep: $c rows, $s" for ((m, s), c) in sort(collect(sweep))])
     println(io, "- **Empty rates**, which count as not better on the rate criterion:",
         isempty(empty) ? " none." : "")
     foreach(f -> println(io, "  - ", f), empty)
@@ -662,17 +682,26 @@ function write_verdict(; results_dirs, out::AbstractString)
             println(io, "| $case | $(c[2]) | ", join(cells, " | "), " |")
         end
         println(io, "\n## The comparisons\n")
+        stationary = !isempty(stationary_rows(data))
         for (case, c, cmp) in comparisons
             println(io, "### $case: $(c[2])\n")
-            write_comparison(io, cmp)
+            write_comparison(io, cmp; stationary)
         end
 
         println(io, "## Wins on the error criterion\n")
-        println(
+        print(
             io, "Bound A: the case has a rate and the autoencoder's fitted rate is within ",
             "the tolerance of the full-order run's rate ($(join(("$k $(format_value(100v)) %"
                                                                 for (k, v) in sort(collect(RATE_TOLERANCE))), ", "))) at an n of the win. ",
-            "Bound C: at some n ≤ 16 its error is at or below POD's at n = 32 in the same case.\n")
+            "Bound C: at some n ≤ 16 its error is at or below POD's at n = 32 in the same case.")
+        any(
+            r -> (r["kind"], r["status"], r["rate_status"]) == ("sweep", "ok", "ok") &&
+                 r["method"] in VERDICT_AUTOENCODERS,
+            data.rows) ||
+            print(
+                io, " The sweep rows of the autoencoders hold no rate, so bound A cannot ",
+                "hold in the sweep.")
+        println(io, "\n")
         if isempty(v.wins)
             println(io, "No autoencoder beats the best baseline on the error criterion.\n")
         else
