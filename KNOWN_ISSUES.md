@@ -193,3 +193,32 @@
   deterministic.
 - **kind:** missing test
 - **found:** 2026-11-01
+
+### K18 · No test reaches the full mode of `run_particles` or of `--labelled-pod`, so no test shows that either takes its settings from `particle_mode(smoke)`.
+
+- **location:** `src/particles.jl:499`
+- **evidence:** the core test checks `particle_mode(false) == PARTICLE_FULL_MODE` and
+  `particle_mode(true) == PARTICLE_SMOKE_MODE`, but no core test calls `run_particles`. The
+  mutant `mode = particle_mode(smoke)` → `mode = PARTICLE_FULL_MODE` survives
+  `test/particles.jl`; under it, the smoke test of the script runs the full mode for hours. In
+  `scripts/particles.jl:46`, the mutant that passes `smoke = true` to `add_labelled_pod` in place
+  of `smoke` survives `test/particles.jl` too, because its test of the script options calls
+  `main` only with `--smoke`. The full mode is the script run, outside the suite; the full-mode
+  runs of `scripts/particles.jl`, with and without `--labelled-pod`, went through both lines
+  and wrote rows of 256 particles. A test of the mode choice that does not run the full mode
+  needs a seam in `run_particles`, and the user asks for little effort on it.
+- **kind:** missing test
+- **found:** 2026-11-01
+
+### K19 · `add_labelled_pod` truncates `particle_frontends.csv` when the POD of the stored run throws.
+
+- **location:** `src/particles.jl:400`
+- **evidence:** `add_labelled_pod` opens the file with `"w"` and computes `labelled_pod_rows`
+  inside the `do` block, so an error of `pod_error` leaves the file with the kept rows only. A
+  stored smoke run whose velocities hold one `NaN` makes `svdvals` throw
+  `ArgumentError: invalid argument #4 to LAPACK call`; a file of 5 lines whose last row is
+  `pod_labelled` then has 4 lines, and the old `pod_labelled` row is lost. Computing the rows
+  before `open(path, "w")` closes it. A `pod_error` with `n` above the rank does not throw: it
+  returns `0.0`.
+- **kind:** defect
+- **found:** 2026-11-01
