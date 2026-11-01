@@ -76,4 +76,7 @@ end
     e = thrown(() -> parity_join(zeros(25), zeros(5)))
     @test e isa DimensionMismatch
     @test occursin(r"^a parity vector of 25 values does not fit 5 v nodes$", e.msg)
+    e = thrown(() -> parity_join(zeros(0), zeros(0)))
+    @test e isa DimensionMismatch
+    @test occursin(r"^a parity vector of 0 values does not fit 0 v nodes$", e.msg)
 end

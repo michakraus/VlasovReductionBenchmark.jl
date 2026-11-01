@@ -18,7 +18,7 @@ using Printf: @printf, @sprintf
 using QuadGK: quadgk
 using ReducedBasisMethods: CotangentLiftSVD, PODSVD, ReducedBasis
 using ReducedComplexityModeling: Parameter, ParameterSpace
-using SimpleSolvers: isconverged, status
+using SimpleSolvers: NonlinearSolverException, isconverged, status
 using SpecialFunctions: erfcx
 using TOML: TOML
 using VlasovMethods: VlasovMethods, GridDistribution, VlasovPoisson
@@ -42,7 +42,7 @@ export check_rate, growth_rate_fit, landau_rate_fit, run_case, run_full_order, w
 export background, parity_join, parity_snapshots, parity_split
 export fitted_rate, l1_norm, max_drift, relative_l2_errors, trajectory_metrics
 export check_pod_optimality, checked_projection_errors, decode, encode, full_order_field,
-       galerkin_field, pod_reduction, projection_error, psd_basis, psd_reduction,
+       galerkin_field, pod_reduction, psd_basis, psd_reduction, relative_projection_error,
        run_reduced
 export run_linear_baselines
 

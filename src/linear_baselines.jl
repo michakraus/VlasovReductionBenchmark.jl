@@ -10,11 +10,10 @@ const LINEAR_METHODS = ("POD" => pod_reduction, "PSD" => psd_reduction)
 
 "The columns of `linear_baselines.csv`, in order."
 const BASELINE_COLUMNS = ("method", "kind", "case", "alpha", "n", "state_size", "status",
-    "l2_error_max", "l2_errors", "max_l2_error_fluct", "l2_error_fluct",
-    "rate", "rate_status", "rate_full_order", "energy_drift",
-    "l1_drift",
-    "l2_drift", "entropy_drift", "nonpositive_nodes", "projection_error", "offline_seconds",
-    "online_seconds_per_step", "online_ratio")
+    "l2_error_max", "l2_errors", "max_l2_error_fluct", "l2_error_fluct", "rate", "rate_status",
+    "rate_full_order", "energy_drift", "l1_drift", "l2_drift", "entropy_drift",
+    "nonpositive_nodes", "projection_error", "offline_seconds", "online_seconds_per_step",
+    "online_ratio")
 
 "The velocity profile of each case name of a run file."
 const PROFILES = Dict("linear_landau" => maxwellian, "nonlinear_landau" => maxwellian,
@@ -66,9 +65,9 @@ end
 
 The row of the reduction `r` of the data `run` at latent dimension `n`: the reduced run of
 [`run_reduced`](@ref), with `perturb`, and its [`trajectory_metrics`](@ref) against the run,
-around the background of the run's first snapshot, the rate and its status of [`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the
-run, the snapshot `projection` error and the `offline` seconds. A reduced run that stops
-leaves every metric empty.
+around the background of the run's first snapshot, the rate and its status of
+[`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the run, the snapshot `projection`
+error and the `offline` seconds. A reduced run that stops leaves every metric empty.
 """
 function data_row(method, run, n, r, offline, projection, mode; perturb = nothing)
     case = run.case
@@ -213,13 +212,14 @@ function run_linear_baselines(; runs_dir::AbstractString, results_dir::AbstractS
             "$(mode.grid[2]) grid of this mode")
         S = run.snapshots
         f0 = background(S[:, :, 1])
-        errors = checked_projection_errors(run.case.name, S, f0, ns)
-        for (method, build) in LINEAR_METHODS, (i, n) in enumerate(ns)
+        checked = checked_projection_errors(run.case.name, S, f0, ns)
+        for (method, _) in LINEAR_METHODS, (i, n) in enumerate(ns)
 
-            timed = @timed build(S, f0, n)
-            r, offline = timed.value, timed.time
-            projection = method == "POD" ? errors.pod[i] : errors.psd[i]
-            push!(rows, data_row(method, run, n, r, offline, projection, mode; perturb))
+            key = method == "POD" ? :pod : :psd
+            push!(rows,
+                data_row(
+                    method, run, n, checked.reductions[key][i], checked.seconds[key][i],
+                    checked[key][i], mode; perturb))
             push!(files, file)
             @printf("  %s, %s, n = %d: %s\n", method, file, n, rows[end]["status"])
             flush(stdout)

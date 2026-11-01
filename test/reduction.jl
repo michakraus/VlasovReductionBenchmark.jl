@@ -16,6 +16,19 @@ function allocations(g::G, ż::A, z::A) where {G, A}
     (g(ż, 0.0, z, nothing); @allocated g(ż, 0.0, z, nothing))
 end
 
+# Grid coordinates whose map from the fluctuation throws an `ArgumentError` once `broken[]` is
+# set: a step of a reduced run that raises an error which is not the solver's.
+struct FailingCoordinates <: VlasovReductionBenchmark.Coordinates
+    broken::Base.RefValue{Bool}
+end
+function VlasovReductionBenchmark.to_coordinates!(w, c::FailingCoordinates, g, nx, nv)
+    c.broken[] && throw(ArgumentError("the coordinates of this probe fail"))
+    return copyto!(w, g)
+end
+function VlasovReductionBenchmark.from_coordinates!(g, ::FailingCoordinates, w, nx, nv)
+    copyto!(g, w)
+end
+
 @testset "POD basis" begin
     S = SHORT_RUN.snapshots
     f0 = background(S[:, :, 1])
@@ -76,15 +89,15 @@ end
         pod, psd = pod_reduction(S, f0, n), psd_reduction(S, f0, n)
         # in parity coordinates, relative to the whole parity snapshot
         A = psd.basis
-        @test projection_error(psd, S) ≈ norm(W - A * (A' * W)) / norm(W) rtol=1e-12
+        @test relative_projection_error(psd, S) ≈ norm(W - A * (A' * W)) / norm(W) rtol=1e-12
         G = reshape(S .- f0', 32 * 64, :)
         V = pod.basis
         # the parity map scales by 1/√2 and keeps the ratio
-        @test projection_error(pod, S) ≈ norm(G - V * (V' * G)) / norm(G) rtol=1e-12
-        @test projection_error(pod, S) ≤ projection_error(psd, S) + 1e-12
+        @test relative_projection_error(pod, S) ≈ norm(G - V * (V' * G)) / norm(G) rtol=1e-12
+        @test relative_projection_error(pod, S) ≤ relative_projection_error(psd, S) + 1e-12
     end
     # a full basis reproduces every snapshot
-    @test projection_error(pod_reduction(S, f0, 11), S) < 1e-12
+    @test relative_projection_error(pod_reduction(S, f0, 11), S) < 1e-12
 end
 
 @testset "POD optimality check" begin
@@ -110,8 +123,16 @@ end
     S = SHORT_RUN.snapshots
     f0 = background(S[:, :, 1])
     errors = checked_projection_errors("linear_landau", S, f0, [2, 4])
-    @test errors.pod ≈ [projection_error(pod_reduction(S, f0, n), S) for n in (2, 4)]
-    @test errors.psd ≈ [projection_error(psd_reduction(S, f0, n), S) for n in (2, 4)]
+    @test errors.pod ≈
+          [relative_projection_error(pod_reduction(S, f0, n), S) for n in (2, 4)]
+    @test errors.psd ≈
+          [relative_projection_error(psd_reduction(S, f0, n), S) for n in (2, 4)]
+    # with the reductions they measure, and the time of each build
+    @test [r.basis for r in errors.reductions.pod] ≈
+          [pod_reduction(S, f0, n).basis for n in (2, 4)]
+    @test [r.basis for r in errors.reductions.psd] ≈
+          [psd_reduction(S, f0, n).basis for n in (2, 4)]
+    @test all(>(0), vcat(errors.seconds...))
     # a POD builder whose basis at n = 4 is the trailing modes, so the error rises with n
     trailing(S, f0, n) = n == 4 ?
                          LinearReduction(GridCoordinates(),
@@ -215,4 +236,21 @@ end
         r, case, 32, 64, S[:, :, 1]; perturb = (s, z) -> s == 1 && (z .*= 1e6))
     @test stop.status == "failed at step 2"
     @test all(isfinite, stop.states[end])
+
+    # a state scaled by 1e200 after step 1 makes the Newton solve of step 2 raise a
+    # `NonlinearSolverException` (measured): the run records the failed solve as its status
+    for build in (pod_reduction, psd_reduction)
+        stop = run_reduced(build(S, f0, 8), case, 32, 64, S[:, :, 1];
+            perturb = (s, z) -> s == 1 && (z .*= 1e200))
+        @test stop.status == "failed at step 2"
+        @test stop.failed_step == 2
+    end
+
+    # any other exception of a step propagates
+    broken = Ref(false)
+    rb = LinearReduction(FailingCoordinates(broken), r.basis, f0, 32, 64)
+    e = thrown(() -> run_reduced(rb, case, 32, 64, S[:, :, 1];
+        perturb = (s, z) -> s == 1 && (broken[] = true)))
+    @test e isa ArgumentError
+    @test occursin(r"^the coordinates of this probe fail$", e.msg)
 end

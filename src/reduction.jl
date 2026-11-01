@@ -123,14 +123,14 @@ function psd_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Intege
 end
 
 """
-    projection_error(r, S)
+    relative_projection_error(r, S)
 
 The relative snapshot projection error ``\\|W - B B^{\\mathsf T} W\\|_F / \\|W\\|_F`` of the
 `nx × nv × m` snapshots `S` under the [`LinearReduction`](@ref) `r`, where ``W`` holds the
 fluctuations of `S` around `r.f0` in the coordinates of `r`. The parity split is ``1/\\sqrt 2``
 times an orthogonal map, so the ratio is the same in grid and in parity coordinates.
 """
-function projection_error(r::LinearReduction, S::AbstractArray{<:Any, 3})
+function relative_projection_error(r::LinearReduction, S::AbstractArray{<:Any, 3})
     W = coordinate_snapshots(r.coordinates, S, r.f0)
     return norm(W - r.basis * (r.basis' * W)) / norm(W)
 end
@@ -144,7 +144,7 @@ const POD_OPTIMALITY_TOLERANCE = 1e-12
 Throw an error naming the case `name` when the POD projection errors `pod` at the basis sizes
 `ns` rise with `n`, or when one exceeds the PSD error `psd` at the same `n` by more than
 [`POD_OPTIMALITY_TOLERANCE`](@ref). By Eckart–Young neither happens to the aggregate errors of
-[`projection_error`](@ref): ``\\operatorname{diag}(Φ, Φ)`` has `n` orthonormal columns.
+[`relative_projection_error`](@ref): ``\\operatorname{diag}(Φ, Φ)`` has `n` orthonormal columns.
 """
 function check_pod_optimality(name, ns, pod, psd)
     for i in 2:length(ns)
@@ -163,17 +163,21 @@ end
 """
     checked_projection_errors(name, S, f0, ns; pod = pod_reduction, psd = psd_reduction)
 
-The [`projection_error`](@ref)s `(pod = …, psd = …)` of the snapshots `S` around `f0` at each
-basis size in `ns`, with the bases that `pod` and `psd` build, after
-[`check_pod_optimality`](@ref).
+The [`relative_projection_error`](@ref)s `(pod = …, psd = …)` of the snapshots `S` around `f0`
+at each basis size in `ns`, with the bases that `pod` and `psd` build, after
+[`check_pod_optimality`](@ref). It returns them with the `reductions` `(pod = …, psd = …)`
+themselves and the `seconds` that each build took.
 """
 function checked_projection_errors(name, S, f0, ns; pod = pod_reduction,
         psd = psd_reduction)
-    errors = (pod = [projection_error(pod(S, f0, n), S) for n in ns],
-        psd = [projection_error(psd(S, f0, n), S) for n in ns])
+    built = (pod = [@timed(pod(S, f0, n)) for n in ns],
+        psd = [@timed(psd(S, f0, n)) for n in ns])
+    reductions = map(b -> [t.value for t in b], built)
+    errors = map(rs -> [relative_projection_error(r, S) for r in rs], reductions)
     check_pod_optimality(name, ns, errors.pod, errors.psd)
 
-    return errors
+    return (
+        errors..., reductions = reductions, seconds = map(b -> [t.time for t in b], built))
 end
 
 """
@@ -268,10 +272,12 @@ Integrate the reduced model of `case` under the [`LinearReduction`](@ref) `r` wi
 decoded `snapshots` every [`SNAPSHOT_INTERVAL`](@ref), and every step the `mass`, `energy`,
 `E1`, `l1`, `l2`, `entropy` and `nonpositive` count of [`invariants`](@ref) of the decoded state.
 
-A step whose `ImplicitMidpoint` solve does not converge, or that leaves a non-finite state, ends
-the run: its `status` is `"failed at step <s>"` and `failed_step` is `s`; otherwise the status is
-`"ok"` and `failed_step` is `nothing`. `perturb(step, z)`, where given, is called on the state
-after each step and before these checks; it lets a test break a run.
+A step whose `ImplicitMidpoint` solve does not converge or throws SimpleSolvers'
+`NonlinearSolverException`, or that leaves a non-finite state, ends the run: its `status` is
+`"failed at step <s>"` and `failed_step` is `s`; otherwise the status is `"ok"` and
+`failed_step` is `nothing`. Any other exception of a step propagates. `perturb(step, z)`, where
+given, is called on the state after each step and before these checks; it lets a test break a
+run.
 """
 function run_reduced(r::LinearReduction, case::VlasovCase, nx::Integer, nv::Integer,
         f_init::AbstractMatrix; perturb = nothing)
@@ -292,9 +298,15 @@ function run_reduced(r::LinearReduction, case::VlasovCase, nx::Integer, nv::Inte
     for s in 0:nsteps
         if s > 0
             reset!(solstep, times[s + 1])
-            integrate!(solstep, int)
+            solved = try
+                integrate!(solstep, int)
+                true
+            catch e
+                e isa NonlinearSolverException || rethrow()
+                false
+            end
             perturb === nothing || perturb(s, solstep.q)
-            if !(step_converged(int) && all(isfinite, solstep.q))
+            if !(solved && step_converged(int) && all(isfinite, solstep.q))
                 status, failed_step = "failed at step $s", s
                 break
             end

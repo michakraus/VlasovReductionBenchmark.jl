@@ -1,6 +1,8 @@
+using LinearAlgebra: svd
 using TOML
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: csv_field, reduced_rate
+using VlasovReductionBenchmark: GridCoordinates, LinearReduction, csv_field, read_run,
+                                reduced_rate
 using Test
 
 include("../helpers/thrown.jl")
@@ -149,14 +151,78 @@ end
             @test (r[col("rate")] == "") == (rate_status != "ok")
         end
         @test occursin("$(length(rows)) rows, $nfailed failed", printed)
+        # every reduced run of the smoke mode completes (measured)
+        @test nfailed == 0
 
         # the online cost is measured in a fresh process
         cost = TOML.parsefile(joinpath(results, "linear_baselines_cost.toml"))
         @test cost["pid"] != getpid()
         @test cost["steps"] == 100
         @test !isempty(cost["uptime"])
-        @test cost["full_order_seconds_per_step"] ==
-              TOML.parsefile(joinpath(results, "full_order_cost.toml"))["seconds_per_step"]
+        full_cost = TOML.parsefile(joinpath(results, "full_order_cost.toml"))
+        full_seconds = full_cost["seconds_per_step"]
+        @test cost["full_order_seconds_per_step"] == full_seconds
+        # each data row holds the time of the cost file and its ratio to the full-order time
+        @test length(cost["rows"]) == length(data)
+        key(r) = (r[col("case")] * "_alpha" * r[col("alpha")] * ".h5", r[col("method")],
+            r[col("n")])
+        for c in cost["rows"]
+            r = only(filter(r -> key(r) == (c["file"], c["method"], string(c["n"])), data))
+            seconds = parse(Float64, r[col("online_seconds_per_step")])
+            @test seconds == c["seconds_per_step"]
+            @test parse(Float64, r[col("online_ratio")]) ≈ seconds / full_seconds rtol=8eps()
+        end
+
+        # one data row against a reduced run of its own: the POD basis of 4 columns of the linear
+        # Landau run, with the drifts of its series and the rate fits over the smoke window
+        row(kind, method, alpha, n) = only(filter(
+            r -> (r[col("kind")], r[col("method")], r[col("alpha")], r[col("n")]) ==
+                 (kind, method, alpha, n), rows))
+        value(r, name) = parse(Float64, r[col(name)])
+        run = read_run(joinpath(runs, "linear_landau_alpha0.01.h5"))
+        S = run.snapshots
+        f0 = background(S[:, :, 1])
+        reduced = run_reduced(pod_reduction(S, f0, 4), run.case, 32, 64, S[:, :, 1])
+        r = row("data", "POD", "0.01", "4")
+        errors = relative_l2_errors(reduced.snapshots, S)
+        @test value(r, "l2_error_max") ≈ maximum(errors) rtol=8eps()
+        errors = relative_l2_errors(reduced.snapshots, S, f0)
+        @test value(r, "max_l2_error_fluct") ≈ maximum(errors) rtol=8eps()
+        for (name, series) in (("energy_drift", reduced.energy), ("l1_drift", reduced.l1),
+            ("l2_drift", reduced.l2), ("entropy_drift", reduced.entropy))
+            @test value(r, name) ≈ max_drift(series) rtol=8eps()
+        end
+        @test parse(Int, r[col("nonpositive_nodes")]) == maximum(reduced.nonpositive)
+        window = (0.0, 25.0)
+        @test value(r, "rate_full_order") ≈
+              landau_rate_fit(run.times, log.(run.E1), window).γ rtol=8eps()
+        rate, rate_status = reduced_rate("linear_landau", reduced.times, reduced.E1, window)
+        @test r[col("rate_status")] == rate_status
+        rate === nothing || @test value(r, "rate") ≈ rate rtol=8eps()
+        # each data row of the run holds the projection error of its own method's basis
+        for (method, build) in (("POD", pod_reduction), ("PSD", psd_reduction)), n in (4, 8)
+
+            @test value(row("data", method, "0.01", string(n)), "projection_error") ≈
+                  relative_projection_error(build(S, f0, n), S) rtol=8eps()
+        end
+
+        # one sweep row against a reduced run of its own: the 4 leading left singular vectors of
+        # the fluctuations of the three training runs together, around the background of the
+        # first, at the test amplitude 0.03
+        train = [read_run(joinpath(runs, "linear_landau_alpha$α.h5")).snapshots
+                 for α in (0.005, 0.01, 0.02)]
+        f0 = background(train[1][:, :, 1])
+        U = svd(reduce(hcat, [reshape(T .- f0', 32 * 64, :) for T in train])).U[:, 1:4]
+        test = read_run(joinpath(runs, "linear_landau_alpha0.03.h5"))
+        reduced = run_reduced(LinearReduction(GridCoordinates(), U, f0, 32, 64), test.case,
+            32, 64, test.snapshots[:, :, 1])
+        r = row("sweep", "POD", "0.03", "4")
+        # the two bases differ by the round-off of two SVDs
+        @test value(r, "l2_error_max") ≈
+              maximum(relative_l2_errors(reduced.snapshots, test.snapshots)) rtol=1e-8
+        @test value(r, "max_l2_error_fluct") ≈
+              maximum(relative_l2_errors(reduced.snapshots, test.snapshots,
+            background(test.snapshots[:, :, 1]))) rtol=1e-8
 
         # every reduced run broken at step 2: each row records it, and the script goes on
         broken = joinpath(root, "broken")

@@ -89,11 +89,11 @@ end
 
 The `nx × nv` state ``f_0 + g`` of the parity vector `w` of [`parity_split`](@ref) and the
 background `f0` of `nv` values, with ``n_x = `` `length(w) ÷ nv`. It throws a `DimensionMismatch`
-when `nv` is odd or `length(w)` is no multiple of `nv`.
+when `nv` is zero or odd or `length(w)` is no multiple of `nv`.
 """
 function parity_join(w::AbstractVector, f0::AbstractVector)
     nv = length(f0)
-    (iseven(nv) && length(w) % nv == 0) || throw(DimensionMismatch(
+    (nv > 0 && iseven(nv) && length(w) % nv == 0) || throw(DimensionMismatch(
         "a parity vector of $(length(w)) values does not fit $nv v nodes"))
     nx = length(w) ÷ nv
     g = parity_join!(similar(w), w, nx, nv)
