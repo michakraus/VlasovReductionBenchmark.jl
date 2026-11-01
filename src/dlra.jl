@@ -73,9 +73,10 @@ end
 
 The discretisation of `case` on the `nx × nv` grid of [`grid`](@ref) that the DLRA solver and
 its full-rank solver share: the nodes `x`, `v`, the spacings `hx`, `hv`, the Green's matrix `G`
-(``φ = Gρ``) of the FFT Poisson solver of [`vlasov_model`](@ref), the [`spectral_derivative`](@ref) `Dx` and the [`centred_derivative`](@ref) `Dv`,
-the initial condition `f_init`, its [`background`](@ref) `f0`, the charge ``ρ_0 = h_v \sum_j
-f_{0,j}`` of `f0` and ``D_v f_0`` as `Dvf0`.
+(``φ = Gρ``) of the FFT Poisson solver of [`vlasov_model`](@ref), the
+[`spectral_derivative`](@ref) `Dx` and the [`centred_derivative`](@ref) `Dv`, the initial
+condition `f_init`, its [`background`](@ref) `f0`, the charge ``ρ_0 = h_v \sum_j f_{0,j}`` of
+`f0` and ``D_v f_0`` as `Dvf0`.
 """
 function dlra_discretisation(case::VlasovCase, nx::Integer, nv::Integer)
     model = vlasov_model(case, nx, nv)
