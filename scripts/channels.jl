@@ -11,8 +11,8 @@
 #
 # It reads the long runs from <d>, or runs and writes them there, and writes one row per
 # dataset, n and split to <r>/channel_splits.csv, per dataset, n and input rank to
-# <r>/channel_dlra.csv, per dataset and n to <r>/channel_joint.csv, and the page of the three
-# to <r>/channels.md. A training whose loss becomes non-finite or does not fall is a row with
+# <r>/channel_dlra.csv, per dataset, n and cross to <r>/channel_joint.csv, and the page of the
+# three to <r>/channels.md. A training whose loss becomes non-finite or does not fall is a row with
 # its status; the script goes on and counts it.
 
 using VlasovReductionBenchmark: run_channels

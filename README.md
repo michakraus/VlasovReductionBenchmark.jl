@@ -186,8 +186,9 @@ autoencoders* (`PARITY_MODES`) and at the split of the smallest Stage I error. T
 $r_{\mathrm{in}} \in \{4, 8, 16\}$ of each snapshot into the same core; its error is measured
 against the fluctuation and against its input.
 A network with both channels, its DLRA frontend set from the dense states $X S V^{\mathsf T}$ of
-rank 8, trains on the sum of the two losses; the script measures each channel and both
-translations between them against the fluctuation. It writes `results/channel_splits.csv`,
+rank 8, trains on the sum of the two losses; a second row per case trains on that sum plus
+`cross_loss`, the two `CrossModalLoss` terms with weights $1/\|G\|_F^2$. The script measures each
+channel and both translations between them against the fluctuation. It writes `results/channel_splits.csv`,
 `results/channel_dlra.csv`, `results/channel_joint.csv` and a page of the three,
 `results/channels.md`. `--smoke` runs $32 \times 64$, $n \in \{4, 8\}$, the long runs to
 $t = 40$, $r_{\mathrm{in}} = 4$ and 100 training steps. A training whose loss does not fall, or
