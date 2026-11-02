@@ -41,7 +41,7 @@ function train_latent_sympnet(Z::AbstractMatrix, m_train::Integer; epochs::Integ
     n, m = size(Z)
     check_training_columns(m_train, m)
     data = qp_split(Z[:, 1:m_train])
-    all(isfinite, Z[:, 1:m_train]) ||
+    all(isfinite, view(Z, :, 1:m_train)) ||
         throw(ArgumentError("the training columns 1:$m_train of Z hold a non-finite value"))
     nn = NeuralNetwork(GSympNet(n; upscaling_dimension = 2n, n_layers), CPU(), Float64;
         rng = Xoshiro(seed))
@@ -121,7 +121,7 @@ function latent_run(r, case::VlasovCase, S::AbstractArray{<:Any, 3}, nn, m_train
     series = [invariants(
                   view(snapshots, :, :, s), model.work, case.k, x, v, step(x), step(v))
               for s in 1:m]
-    drift(name) = max_drift([getfield(d, name) for d in series])
+    drift(name) = max_drift(Float64[getfield(d, name) for d in series])
 
     return (status = "ok", diverged_at = nothing, snapshots = snapshots,
         l2_error_in_sample = rms(errors[1:m_train]),
