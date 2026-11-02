@@ -123,6 +123,12 @@ end
         @test κ ≈ cond(latent_pairing(r.r0, CASE.k)[1:h, (h + 1):n]) rtol=1e-12
         Π = latent_pairing(r, CASE.k)
         @test maximum(abs, Π - J(n ÷ 2)) ≤ 1e-10 * κ
+        # the functionals of `encode` itself: row i of E is the latent state of the state whose
+        # parity vector is the unit vector e_i, so encode(r, f) = Eᵀ parity_split(f, F0)
+        E = reduce(vcat,
+            [encode(r, parity_join(Float64.(1:(NX * NV) .== i), F0))' for i in 1:(NX * NV)])
+        Πe = latent_pairing(LinearReduction(ParityCoordinates(), E, F0, NX, NV), CASE.k)
+        @test maximum(abs, Πe - J(n ÷ 2)) ≤ 1e-10 * κ
     end
 end
 
@@ -192,8 +198,8 @@ end
     msg = sprint(showerror, e)
     @test occursin("round-off", msg) && occursin("condition number", msg)
     # a sin(kx) part of relative size ε in the first mode gives a block of norm about
-    # 2.5e-3 ε times the scale: ε = 1e-8 lies below the limit 1e-10, ε = 1e-6 above it
-    for (ε, below) in ((1e-8, true), (1e-6, false))
+    # 2.5e-3 ε times the scale: ε = 2e-8 lies below the limit 1e-10, ε = 8e-8 above it
+    for (ε, below) in ((2e-8, true), (8e-8, false))
         modes = ((c .+ ε .* s_) .* p', cosine_modes[2:4]...)
         S = reduce((A, B) -> cat(A, B; dims = 3),
             [p' .+ sum(coefficients(s) .* modes) for s in 0:6])
@@ -233,7 +239,15 @@ end
     @test_throws ArgumentError dual_psd_reduction(TS, F0, 4, 0.0)
     @test_throws ArgumentError dual_psd_reduction(TS, F0, 4, -0.5)
     @test_throws ArgumentError latent_pairing(psd_reduction(TS, F0, 4), 0.0)
+    e = thrown(() -> dual_psd_reduction(TS, F0, 4, Inf))
+    @test e isa ArgumentError
+    @test occursin("wave number", sprint(showerror, e))
     for bad in (NaN, Inf, -Inf)
+        g0 = copy(F0)
+        g0[5] = bad
+        e = thrown(() -> dual_psd_reduction(TS, g0, 4, CASE.k))
+        @test e isa ArgumentError
+        @test occursin("non-finite", sprint(showerror, e))
         S = copy(TS)
         S[3, 4, 2] = bad
         @test_throws ArgumentError dual_psd_reduction(S, F0, 4, CASE.k)

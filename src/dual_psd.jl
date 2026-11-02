@@ -7,14 +7,15 @@ parity snapshots of the `nx × nv × m` snapshots `S` around `f0` after the x-av
 their `nv` parity rows is removed. Every column of ``Φ`` then has a zero x-average in each of
 its `nv/2` velocity rows: the basis holds no ``k = 0`` content.
 
-It throws an `ArgumentError` for an odd `n`, for a snapshot with a non-finite value, and when
-the parity snapshots without their x-average have at most `1e-12` times the norm of those with
-it, as for snapshots with no content beyond ``k = 0``.
+It throws an `ArgumentError` for an odd `n`, for a snapshot or a background with a non-finite
+value, and when the parity snapshots without their x-average have at most `1e-12` times the
+norm of those with it, as for snapshots with no content beyond ``k = 0``.
 """
 function psd_nonzero_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer)
     nx, nv, _ = size(S)
     iseven(n) || throw(ArgumentError("PSD takes an even number of modes, got $n"))
     all(isfinite, S) || throw(ArgumentError("the snapshots hold a non-finite value"))
+    all(isfinite, f0) || throw(ArgumentError("the background holds a non-finite value"))
     W = parity_snapshots(S, f0)
     W3 = reshape(W, nx, nv, :)
     W0 = reshape(W3 .- sum(W3; dims = 1) ./ nx, nx * nv, :)
@@ -32,13 +33,13 @@ central difference at the interior nodes, and the one-sided difference of second
 two end nodes.
 """
 function background_derivative(f0::AbstractVector, hv::Real)
-    g, nv = f0, length(f0)
-    d = similar(g, Float64)
-    d[1] = (-3 * g[1] + 4 * g[2] - g[3]) / (2hv)
+    nv = length(f0)
+    d = similar(f0, Float64)
+    d[1] = (-3 * f0[1] + 4 * f0[2] - f0[3]) / (2hv)
     for j in 2:(nv - 1)
-        d[j] = (g[j + 1] - g[j - 1]) / (2hv)
+        d[j] = (f0[j + 1] - f0[j - 1]) / (2hv)
     end
-    d[nv] = (3 * g[nv] - 4 * g[nv - 1] + g[nv - 2]) / (2hv)
+    d[nv] = (3 * f0[nv] - 4 * f0[nv - 1] + f0[nv - 2]) / (2hv)
     return d
 end
 
@@ -61,11 +62,12 @@ the bracket ``\int\!\!\int f_0 \{m, m'\}`` after an integration by parts, with `
 [`spectral_derivative`](@ref) and ``f_0'`` from [`background_derivative`](@ref). It is
 antisymmetric, and for an even background its odd–odd and even–even blocks vanish.
 
-It throws an `ArgumentError` for `k ≤ 0` and for a background `f0` that differs from
-`reverse(f0)` by more than `1e-12 ‖f0‖`.
+It throws an `ArgumentError` for a `k` that is not positive and finite, and for a background
+`f0` that differs from `reverse(f0)` by more than `1e-12 ‖f0‖`.
 """
 function latent_pairing(r::LinearReduction{ParityCoordinates}, k::Real)
-    k > 0 || throw(ArgumentError("the wave number must be positive, got $k"))
+    0 < k < Inf ||
+        throw(ArgumentError("the wave number must be positive and finite, got $k"))
     norm(r.f0 - reverse(r.f0)) ≤ 1e-12 * norm(r.f0) ||
         throw(ArgumentError("the background is not even in v"))
     nx, nv = r.nx, r.nv
