@@ -282,3 +282,36 @@
   of `run_case` and does not read these files back, so only a later reader of `<d>` meets it.
 - **kind:** defect
 - **found:** 2026-11-02
+
+### K25 · No test reaches the full mode of `run_channels`, so no test shows that it takes its settings from `channels_mode(smoke)`.
+
+- **location:** `src/channels.jl:495`
+- **evidence:** the core test checks both branches of `channels_mode`, but only the smoke run of
+  the script calls `run_channels`. The mutant `mode = channels_mode(smoke)` →
+  `mode = channels_mode(true)` survives the test files of the channels, because every test of
+  `run_channels` passes `smoke = true`. The full mode is a script run, outside the suite.
+- **kind:** missing test
+- **found:** 2026-11-02
+
+### K26 · On snapshots that the grid frontend fits to round-off, the training of a split stops with "the loss did not fall", so its row has no trained error.
+
+- **location:** `src/channels.jl:265`
+- **evidence:** on 32 × 64 with 40 snapshots of one mode in `x`, `G1 = [cos(0.5 * xi) *
+  exp(-vj^2 / 2) * (1 + vj)^(1 + t % 5) * sin(t + vj) for xi in x, vj in v, t in 1:40]`,
+  `split_rows("edge", G1, 32; seed = 42, steps = 3)` gives the split (2, 16) the frontend error
+  `7.30e-16`, the Stage I error `7.32e-16` and the status "failed: the loss did not fall
+  (3.0394238146504853e-33 → 0.0015181898582640415)". The row keeps its frontend and Stage I
+  errors and has no trained error. The datasets of the script do not reach this case, and no
+  run shows whether a training that starts at round-off should count as failed.
+- **kind:** not verified
+- **found:** 2026-11-02
+
+### K28 · No test reaches the check in `run_channels` that each snapshot has a fluctuation.
+
+- **location:** `src/channels.jl:504`
+- **evidence:** the core test checks `channel_fluctuations` on a fixture, but `run_channels`
+  takes its datasets from `channel_datasets`, and every snapshot of those has a fluctuation. The
+  mutant `channel_fluctuations(name, S)` → `fluctuation(S, background(S[:, :, 1]))` survives
+  `test/integration/channels_script.jl`.
+- **kind:** missing test
+- **found:** 2026-11-02

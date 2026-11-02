@@ -15,6 +15,9 @@ The verdict: one Markdown page, written from the result files of all of these ru
 The reconstruction probes: the reconstruction error of each reduction, with no reduced
 dynamics, on long runs and on the passive advection of a bump, in sample and in extrapolation
 in time.
+
+The input channels: the reconstruction error of the multi-modal network through its grid
+channel at every split of its modes, through its DLRA channel, and through both at once.
 """
 module VlasovReductionBenchmark
 
@@ -24,7 +27,8 @@ using GeometricEquations: ODEProblem, functions, parameters
 using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
 using GeometricMachineLearning: GeometricMachineLearning, BilinearStiefelLayer, CPU,
-                                CharbonnierRelativeLoss, MultiModalSymplecticAutoencoder,
+                                CharbonnierRelativeLoss, LowRankStiefelLayer,
+                                MultiModalSymplecticAutoencoder,
                                 NeuralNetwork, PSDArch, SymmetricSymplecticAutoencoder,
                                 SymplecticAutoencoder, WeightTiedSymplecticAutoencoder
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
@@ -61,6 +65,7 @@ include("dlra.jl")
 include("particles.jl")
 include("verdict.jl")
 include("reconstruction.jl")
+include("channels.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -82,5 +87,6 @@ export pod_error, pod_modes, run_particles, run_pic, sample_particles, sorted_sn
 export write_verdict
 export advection_profile, advection_snapshots, advection_times, long_run_cases,
        run_reconstruction, time_split, two_stream_beams_profile
+export run_channels
 
 end

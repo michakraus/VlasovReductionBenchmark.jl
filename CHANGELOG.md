@@ -157,3 +157,32 @@ so `[Unreleased]` has no target version.
   snapshot with no fluctuation stops the script with its dataset and index. The test suite runs
   its checks in the `core` group and its smoke mode in the `slow` group; the full mode is a script
   run, outside the suite.
+- `scripts/channels.jl --runs-dir <d> --results-dir <r> [--smoke]`: the reconstruction error of
+  the weight-tied multi-modal network through its input channels, in sample, on the five datasets
+  of the reconstruction probes, whose long runs it reads from `<d>` where a file there holds the
+  same grid, amplitude and end time, and otherwise runs and writes there. For every split
+  $m_x m_v = n$ of the grid channel (`grid_splits`, 18 at $n \in \{4, 8, 16, 32\}$; smoke: 7 at
+  $\{4, 8\}$) it writes the error of
+  the Tucker frontend and its inverse, the Stage I error of the untrained network
+  (`channel_network`, the setup of `weight_tied_network` at any split), and the error after 2000
+  training steps (smoke: 100) at the split of `PARITY_MODES` and at the split of the smallest
+  Stage I error, to `<r>/channel_splits.csv`. The DLRA channel, a `LowRankStiefelLayer` with the
+  bases of the trained grid network copied in (`dlra_network`), encodes the truncated SVD of each
+  snapshot at the input ranks 4, 8 and 16 (smoke: 4) into the same core; its errors against the
+  fluctuation and against its input go to `<r>/channel_dlra.csv`, with the decode rank. A network
+  with both channels, its DLRA bases from the Tucker `solve!` on the dense rank-8 states (smoke:
+  rank 4), trains on the sum of the two `CharbonnierRelativeLoss` terms (`joint_loss`); the errors
+  of each channel and of both translations go to `<r>/channel_joint.csv`. Every error is the
+  aggregate and the largest per-snapshot relative error, and `<r>/channels.md` tabulates them. A
+  snapshot with no fluctuation stops the script with its dataset and index
+  (`channel_fluctuations`). The checks without training run in the `core` group, the checks of
+  the rows and the smoke mode in the `slow` group; the full mode is a script run, outside the
+  suite.
+- The two-channel network of `scripts/channels.jl` also trains its translations: for each dataset
+  and $n$, `<r>/channel_joint.csv` holds a row with `cross = false`, trained on `joint_loss` as
+  before, and one with `cross = true`, trained with the same seed and steps on `joint_loss` plus
+  `cross_loss`, the two `CrossModalLoss` terms `(:grid, :dlra)` and `(:dlra, :grid)` with both
+  weights $1/\|G\|_F^2$, so that each cross term is a squared relative error (40 joint rows in
+  full mode; smoke: 20). The page's table of the two-channel network gains the column `cross`.
+  The by-value check of the `cross = true` row trains its reference on GeometricMachineLearning's
+  losses, not on `joint_loss`, so it also catches a wrong joint loss (closes K27).
