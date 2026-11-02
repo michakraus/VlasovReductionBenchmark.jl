@@ -7,8 +7,6 @@ using VlasovReductionBenchmark
 using VlasovReductionBenchmark: invariants
 using Test
 
-include("helpers/thrown.jl")
-
 const NX, NV = 32, 64
 
 # The 40 snapshots of a two-stream run on the smoke grid, t ∈ [0, 19.5].
@@ -89,17 +87,28 @@ end
     @test a4.history != a.history
 
     # the protocol built from GeometricMachineLearning directly: parameters from Xoshiro(seed),
-    # Adam at the package's step size, and the shuffle of the global generator seeded with seed
-    nn = NeuralNetwork(GSympNet(4; upscaling_dimension = 8, n_layers = 4), CPU(), Float64;
-        rng = Xoshiro(42))
-    optimizer = TrainingOptimizer(nn.params; algorithm = Adam(),
-        linesearch = VlasovReductionBenchmark.TRAINING_STEP_SIZE)
-    loader = DataLoader((q = OSCILLATOR[1:2, 1:M_TRAIN], p = OSCILLATOR[3:4, 1:M_TRAIN]);
-        suppress_info = true)
-    Random.seed!(42)
-    history = train!(nn, optimizer, loader, Batch(4), 20; show_progress = false)
-    @test history == a4.history
-    @test weights(nn) == weights(a4.network)
+    # Adam at the package's step size, and the shuffle of the global generator seeded with
+    # `shuffle_seed`
+    function direct(seed, shuffle_seed)
+        nn = NeuralNetwork(
+            GSympNet(4; upscaling_dimension = 8, n_layers = 4), CPU(), Float64;
+            rng = Xoshiro(seed))
+        optimizer = TrainingOptimizer(nn.params; algorithm = Adam(),
+            linesearch = VlasovReductionBenchmark.TRAINING_STEP_SIZE)
+        loader = DataLoader(
+            (q = OSCILLATOR[1:2, 1:M_TRAIN], p = OSCILLATOR[3:4, 1:M_TRAIN]);
+            suppress_info = true)
+        Random.seed!(shuffle_seed)
+        history = train!(nn, optimizer, loader, Batch(4), 20; show_progress = false)
+        return (network = nn, history = history)
+    end
+    d = direct(42, 42)
+    @test d.history == a4.history
+    @test weights(d.network) == weights(a4.network)
+    # a seed other than 42 reaches the shuffle too: the shuffle of seed 43, not that of 42
+    c4 = train_latent_sympnet(OSCILLATOR, M_TRAIN; epochs = 20, seed = 43, batch_size = 4)
+    @test c4.history == direct(43, 43).history
+    @test c4.history != direct(43, 42).history
     two = train_latent_sympnet(OSCILLATOR, M_TRAIN; epochs = 1, seed = 42, n_layers = 2)
     @test two.network.architecture.n_layers == 2
 
@@ -171,7 +180,7 @@ end
     @test isapprox(run.snapshots, S; rtol = 1e-12)
     model = vlasov_model(case, NX, NV)
     x, v = model.distribution.x, model.distribution.v
-    series = [invariants(run.snapshots[:, :, s], model.work, 0.3, x, v, step(x), step(v))
+    series = [invariants(S[:, :, s], model.work, 0.3, x, v, step(x), step(v))
               for s in 1:m]
     for (name, drift) in ((:energy, :energy_drift), (:l1, :l1_drift), (:l2, :l2_drift),
         (:mass, :mass_drift))

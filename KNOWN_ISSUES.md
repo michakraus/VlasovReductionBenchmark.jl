@@ -315,3 +315,34 @@
   `test/integration/channels_script.jl`.
 - **kind:** missing test
 - **found:** 2026-11-02
+
+### K29 · `latent_run` gives the status "ok" to a finite latent rollout that decodes to non-finite values.
+
+- **location:** `src/latent_dynamics.jl:107`
+- **evidence:** the status checks the latent vectors only. A stub network whose rollout is
+  finite and whose column 10 is `1e300` gives `("ok", nothing, Inf, NaN)` for `status`,
+  `diverged_at`, `l2_error_in_sample` and `energy_drift`, so the row reads as a valid run with
+  non-finite errors and drifts. The plan decides the status for a non-finite latent rollout only.
+- **kind:** found late
+- **found:** 2026-11-02
+
+### K30 · `latent_snapshots` and `latent_rollout` throw errors that do not name the cause for zero snapshots.
+
+- **location:** `src/latent_dynamics.jl:9`
+- **evidence:** `latent_snapshots(r, S[:, :, 1:0])` throws "reducing over an empty collection is
+  not allowed", and `latent_rollout(nn, z0, 0)` (`src/latent_dynamics.jl:77`) throws
+  `BoundsError: attempt to access 8×0 Matrix`. The plan does not decide `m = 0`; an
+  `ArgumentError` for `m < 1` names the cause.
+- **kind:** found late
+- **found:** 2026-11-02
+
+### K31 · `qp_split` repeats the slicing of GeometricMachineLearning's `assign_q_and_p`.
+
+- **location:** `src/latent_dynamics.jl:18`
+- **evidence:** GeometricMachineLearning (`main` at `e4cd4aa9`) defines the public
+  `assign_q_and_p(x, N)` (`src/kernels/assign_q_and_p.jl:16` there), which splits the rows of `x`
+  into `q` and `p` in the same way. `qp_split` could be its parity guard and
+  `assign_q_and_p(Z, n ÷ 2)`; this saves no line and removes a duplicate of the dependency's
+  split.
+- **kind:** upstream
+- **found:** 2026-11-02
