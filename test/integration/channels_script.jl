@@ -86,8 +86,8 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
         @test occursin("channel_dlra.csv: 10 rows, 0 failed", printed)
         @test occursin("channel_joint.csv: 10 rows, 0 failed", printed)
 
-        # per dataset and n: the split of PARITY_MODES, the best split by its Stage I error, and a trained
-        # error on exactly those two
+        # per dataset and n: the split of PARITY_MODES, the best split by its Stage I error, and a
+        # trained error on exactly those two
         for d in datasets, n in (4, 8)
 
             these = filter(r -> r["dataset"] == d && r["n"] == string(n), splits)
