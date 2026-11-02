@@ -186,3 +186,11 @@ so `[Unreleased]` has no target version.
   full mode; smoke: 20). The page's table of the two-channel network gains the column `cross`.
   The by-value check of the `cross = true` row trains its reference on GeometricMachineLearning's
   losses, not on `joint_loss`, so it also catches a wrong joint loss (closes K27).
+
+### Bug Fixes
+
+- The `[compat]` floors of SimpleSolvers and Zygote are ones that the resolver can reach:
+  SimpleSolvers 0.14.2, the floor of VlasovMethods' `main`, and Zygote 0.7.5, the first 0.7 that
+  allows ForwardDiff 1. With the floors 0.14.1 and 0.7.0, the Downgrade job failed its
+  `forcedeps` check. The upper bounds do not change, and every direct dependency resolves at its
+  floor together on Julia 1.12.
