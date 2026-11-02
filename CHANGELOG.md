@@ -195,9 +195,11 @@ so `[Unreleased]` has no target version.
   `DualReduction`: PSD without the x-average with its odd (`q`) latent block mapped by the inverse
   of the odd–even block of that pairing, so that its pairing is $[0\; I; -I\; 0]$; its even (`p`)
   block and its reconstruction are those of PSD without the x-average. `pairing_condition` gives
-  the condition number of the odd–even block, and a block whose condition number exceeds
-  $1/(100\,\varepsilon)$ is an `ArgumentError`. The odd–even block of a PSD basis is
-  antisymmetric, so it is singular for every $n$ with an odd $n/2$.
+  the condition number of the odd–even block. A block of round-off, whose 2-norm is at most
+  $10^{-10}$ times a scale of the pairing (as for a basis whose modes all hold $\cos(kx)$ and none
+  $\sin(kx)$), and a block whose condition number exceeds $1/(100\,\varepsilon)$ are an
+  `ArgumentError`. The odd–even block of a PSD basis is antisymmetric, so it is singular for
+  every $n$ with an odd $n/2$.
 
 ### Bug Fixes
 

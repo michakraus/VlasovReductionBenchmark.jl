@@ -160,11 +160,11 @@ end
     tstar = -detK(0.0) / (detK(1.0) - detK(0.0))
     c, s_ = cos.(CASE.k .* x), sin.(CASE.k .* x)
     limit = 1 / (100eps())
+    coefficients(s) = (0.01s, 0.003s^2, 0.002s^3, 0.001s^4)
     over, under = 0, 0
     for δ in [10.0 .^ (-8:-1:-16); 0.0]
         t = tstar * (1 + δ)
         modes = (c .* α1', c .* α2', s_ .* β1', s_ .* (β2a .+ t .* β2b)')
-        coefficients(s) = (0.01s, 0.003s^2, 0.002s^3, 0.001s^4)
         S = reduce((A, B) -> cat(A, B; dims = 3),
             [p' .+ sum(coefficients(s) .* modes) for s in 0:6])
         f0 = background(S[:, :, 1])
@@ -181,6 +181,25 @@ end
         end
     end
     @test over ≥ 2 && under ≥ 2
+
+    # every mode holds cos(kx) and none sin(kx): the odd–even block is round-off, and at n = 4
+    # it is 2 × 2 and antisymmetric, so its condition number is small
+    cosine_modes = (c .* p', c .* (v .^ 2 .* p)', c .* (v .^ 4 .* p)', c .* (v .^ 6 .* p)')
+    S = reduce((A, B) -> cat(A, B; dims = 3),
+        [p' .+ sum(coefficients(s) .* cosine_modes) for s in 0:6])
+    e = thrown(() -> dual_psd_reduction(S, background(S[:, :, 1]), 4, CASE.k))
+    @test e isa ArgumentError
+    msg = sprint(showerror, e)
+    @test occursin("round-off", msg) && occursin("condition number", msg)
+    # a sin(kx) part of relative size ε in the first mode gives a block of norm about
+    # 2.5e-3 ε times the scale: ε = 1e-8 lies below the limit 1e-10, ε = 1e-6 above it
+    for (ε, below) in ((1e-8, true), (1e-6, false))
+        modes = ((c .+ ε .* s_) .* p', cosine_modes[2:4]...)
+        S = reduce((A, B) -> cat(A, B; dims = 3),
+            [p' .+ sum(coefficients(s) .* modes) for s in 0:6])
+        e = thrown(() -> dual_psd_reduction(S, background(S[:, :, 1]), 4, CASE.k))
+        @test below ? occursin("round-off", sprint(showerror, e)) : e === nothing
+    end
 
     # the odd–even block of a PSD basis is antisymmetric, so for an odd n/2 it is singular
     Π = latent_pairing(psd_nonzero_reduction(TS, F0, 6), CASE.k)

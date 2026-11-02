@@ -97,8 +97,14 @@ The [`DualReduction`](@ref) of the reduction `r0 = `[`psd_nonzero_reduction`](@r
 whose matrix ``C`` is the inverse of the odd–even block of [`latent_pairing`](@ref)`(r0, k)`:
 the latent pairing of the result is canonical, ``[0\\; I; -I\\; 0]``, with `q` the odd block.
 
-It throws an `ArgumentError` where `psd_nonzero_reduction` or `latent_pairing` does, and when
-the 2-norm condition number of the odd–even block exceeds `1 / (100 eps())`.
+It throws an `ArgumentError` where `psd_nonzero_reduction` or `latent_pairing` does, when the
+odd–even block ``B`` is round-off, and when the 2-norm condition number of ``B`` exceeds
+`1 / (100 eps())`. The block is round-off when ``\\|B\\|_2 ≤ 10^{-10} s``, with the scale
+``s = \\max_j |f_0'(v_j)|\\, k\\, (⌈n_x/2⌉ - 1) / (2 h_x h_v)``, ``f_0'`` from
+[`background_derivative`](@ref), ``h_x = 2π/(k n_x)`` and ``h_v = 12/(n_v - 1)``: a ``Φ``
+whose modes all hold ``\\cos(kx)`` and none ``\\sin(kx)`` gives such a block, whose condition
+number can be small. The odd–even block of a PSD basis is antisymmetric, so it is singular for
+every odd `n/2`, and the condition guard throws there.
 """
 function dual_psd_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer,
         k::Real)
@@ -106,6 +112,14 @@ function dual_psd_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::I
     h = n ÷ 2
     B = latent_pairing(r0, k)[1:h, (h + 1):n]
     κ = cond(B)
+    nx, nv = r0.nx, r0.nv
+    hx, hv = 2π / (k * nx), (VDOMAIN[2] - VDOMAIN[1]) / (nv - 1)
+    s = maximum(abs, background_derivative(r0.f0, hv)) * k * (cld(nx, 2) - 1) /
+        (2 * hx * hv)
+    opnorm(B) > 1e-10 * s || throw(ArgumentError(
+        "the odd–even block of the latent pairing is round-off: its norm is " *
+        "$(opnorm(B) / s) times its scale, at most the limit 1e-10, and its condition " *
+        "number is $κ"))
     κ ≤ 1 / (100 * eps(Float64)) || throw(ArgumentError(
         "the odd–even block of the latent pairing has the condition number $κ"))
     return DualReduction(r0, inv(B))
