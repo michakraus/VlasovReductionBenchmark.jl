@@ -139,3 +139,21 @@ so `[Unreleased]` has no target version.
   half, the findings of the runs, and as its last line whether part G of the plan goes on: yes
   when an autoencoder beats the best baseline on the error criterion in a case and meets both the
   rate bound and the compression bound. A missing input file stops the script with its name.
+- `scripts/reconstruction.jl --runs-dir <d> --results-dir <r> [--smoke]`: the reconstruction
+  error of POD, PSD, the untied and the weight-tied network and the rank-$r$ truncated SVD of each
+  test snapshot, with no reduced dynamics, on five datasets: the passive advection of a Gaussian
+  bump (`advection_snapshots`, from the closed form `advection_profile`) over half and over one
+  recurrence time $2\pi / (k\, \Delta v)$ of the grid (`advection_times`), and the long runs of
+  `long_run_cases` to $t = 100$ (smoke: 40), the two-stream instability with the $v^2$ profile and
+  with two beams (`two_stream_beams_profile`, thermal width 0.5 at $v = \pm 1.5$) and nonlinear
+  Landau damping, checked as the full-order runs are and written to `<d>`. Each dataset is
+  measured in sample and in extrapolation in time (`time_split`: train on $t \le T/2$) at
+  $n \in \{4, 8, 16, 32\}$ (smoke: $\{4, 8\}$), the untied network with seeds 42, 43 and 44 and the
+  weight-tied network with seed 42 (smoke: seed 42), for 2000 training steps (smoke: 100). The
+  script writes one row per dataset, split, method, $n$ and seed with the aggregate and the
+  per-snapshot errors to `<r>/reconstruction.csv`, the singular values of each dataset and its
+  mode counts at 99 % and 99.99 % of $\sum \sigma_i^2$ to `<r>/singular_values.csv`, and the
+  medians, the ranges over the seeds and the mode counts to `<r>/reconstruction.md`. A test
+  snapshot with no fluctuation stops the script with its dataset and index. The test suite runs
+  its checks in the `core` group and its smoke mode in the `slow` group; the full mode is a script
+  run, outside the suite.

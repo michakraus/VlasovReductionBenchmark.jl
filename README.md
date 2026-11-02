@@ -140,6 +140,32 @@ baseline on a criterion when it is strictly better at three of the four $n$. A r
 is not `ok` enters no median and is listed. The last line of the page answers whether the
 Vlasov half of the plan goes on. A missing input file stops the script with its name.
 
+## The reconstruction probes
+
+```sh
+julia --project scripts/reconstruction.jl --runs-dir runs --results-dir results
+```
+
+The probes measure the reconstruction error alone, with no reduced dynamics, on five datasets of
+$64 \times 128$: the passive advection $f = M(v)\, g(x - vt)$ of a Gaussian bump of width 1 in
+$x$ times the Maxwellian, without an electric field, over half and over one recurrence time
+$T_R = 2\pi / (k\, \Delta v)$ of the grid (`advection_half`, `advection_full`), and three runs to
+$t = 100$: the two-stream instability with the profile of `two_stream` (`two_stream_long`) and
+with two Maxwellians of thermal width 0.5 at $v = \pm 1.5$ (`two_stream_beams_long`), and
+nonlinear Landau damping (`nonlinear_landau_long`). The script writes the three runs to `runs/`.
+Each dataset is measured in sample, on every snapshot, and in extrapolation in time, trained on
+$t \le T/2$ and tested on the rest. POD, PSD, the untied network (three seeds) and the weight-tied
+network (one seed) are built or trained on the training snapshots, around the spatial average of
+the first of them, at $n \in \{4, 8, 16, 32\}$; the truncated SVD of rank $r = n$ of each test
+snapshot is the reference that a factored state of size $r(N_x + N_v) + r^2$ can reach. The
+script writes one row per dataset, split, method, $n$ and seed, with the aggregate and the
+per-snapshot relative errors of the test fluctuations, to `results/reconstruction.csv`, the
+singular values of each dataset with the number of modes that reach 99 % and 99.99 % of
+$\sum \sigma_i^2$ to `results/singular_values.csv`, and a page of both to
+`results/reconstruction.md`. `--smoke` runs $32 \times 64$, $n \in \{4, 8\}$, the long runs to
+$t = 40$, one seed and 100 training steps. A training whose loss does not fall, or becomes
+non-finite, is a row with a `failed` status, and the script goes on.
+
 ## Tests
 
 ```sh
@@ -154,4 +180,6 @@ no test. The checks of the DLRA solver run in the `core` group, and the smoke an
 `scripts/dlra.jl` in the `slow` group. The `slow` group also runs the smoke mode of
 `scripts/particles.jl`; its full mode trains for hours, so it is the script run of *The particle
 half* and no test. The `core` group runs `scripts/verdict.jl` and the rules of its comparison on
-fixture result files.
+fixture result files. The `core` group also runs the checks of the reconstruction probes, and the
+`slow` group the smoke mode of `scripts/reconstruction.jl`; its full mode is the script run of
+*The reconstruction probes* and no test.
