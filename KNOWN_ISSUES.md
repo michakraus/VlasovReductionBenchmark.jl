@@ -248,3 +248,37 @@
   The cause is GeometricMachineLearning's API, which selects the frontend by `Symbol`.
 - **kind:** upstream
 - **found:** 2026-11-01
+
+### K22 · No test reaches the full mode of `run_reconstruction`, so no test shows that it takes its settings from `reconstruction_mode(smoke)`.
+
+- **location:** `src/reconstruction.jl:448`
+- **evidence:** the core test checks both branches of `reconstruction_mode` and the seeds of
+  each method under the full mode (`method_seeds`), but only the smoke run of the script calls
+  `run_reconstruction`. The mutant `mode = reconstruction_mode(smoke)` →
+  `mode = reconstruction_mode(true)` survives both test files of the probes, and so does
+  `steps = mode.steps` → `steps = 100` (`src/reconstruction.jl:469`), because the smoke mode
+  trains for 100 steps. The full mode is a script run, outside the suite.
+- **kind:** missing test
+- **found:** 2026-11-02
+
+### K23 · `TRAINING_STEP_SIZE` is defined twice, so each precompilation warns that its docstring is replaced.
+
+- **location:** `src/autoencoders.jl:8`
+- **evidence:** `src/particles.jl:31` defines the same constant, `1e-3`, with another docstring.
+  The precompilation of the package prints "Replacing docs for
+  `VlasovReductionBenchmark.TRAINING_STEP_SIZE :: Union{}` in module
+  `VlasovReductionBenchmark`". Both training paths use the same value, so the warning does not
+  change a result; the docstring of one of the two is lost.
+- **kind:** defect
+- **found:** 2026-11-02
+
+### K24 · `read_run` throws a `KeyError` on the file of a long run of the reconstruction probes.
+
+- **location:** `src/linear_baselines.jl:19`
+- **evidence:** `read_run` (`src/linear_baselines.jl:32`) takes the profile from `PROFILES`,
+  whose keys are `linear_landau`, `nonlinear_landau` and `two_stream`. `haskey(PROFILES,
+  c.name)` is `false` for each of `long_run_cases(40.0)`: `two_stream_long`,
+  `two_stream_beams_long` and `nonlinear_landau_long`. The reconstruction script uses the result
+  of `run_case` and does not read these files back, so only a later reader of `<d>` meets it.
+- **kind:** defect
+- **found:** 2026-11-02

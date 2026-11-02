@@ -14,6 +14,7 @@ if "core" in GROUPS
     @safetestset "DLRA solver" include("dlra.jl")
     @safetestset "Particle half" include("particles.jl")
     @safetestset "Verdict" include("verdict.jl")
+    @safetestset "Reconstruction probes" include("reconstruction.jl")
 end
 
 if "slow" in GROUPS
@@ -24,4 +25,5 @@ if "slow" in GROUPS
     @safetestset "Autoencoders script, smoke mode" include("integration/autoencoders_script.jl")
     @safetestset "DLRA script, smoke and full mode" include("integration/dlra_script.jl")
     @safetestset "Particle script, smoke mode" include("integration/particles_smoke.jl")
+    @safetestset "Reconstruction script, smoke mode" include("integration/reconstruction_script.jl")
 end

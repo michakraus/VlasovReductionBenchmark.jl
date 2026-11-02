@@ -11,6 +11,10 @@ and sorted snapshots, and the particle frontends of GeometricMachineLearning's
 `SymmetricSymplecticAutoencoder` trained on them.
 
 The verdict: one Markdown page, written from the result files of all of these runs.
+
+The reconstruction probes: the reconstruction error of each reduction, with no reduced
+dynamics, on long runs and on the passive advection of a bump, in sample and in extrapolation
+in time.
 """
 module VlasovReductionBenchmark
 
@@ -56,6 +60,7 @@ include("autoencoders.jl")
 include("dlra.jl")
 include("particles.jl")
 include("verdict.jl")
+include("reconstruction.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -75,5 +80,7 @@ export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra
 export pod_error, pod_modes, run_particles, run_pic, sample_particles, sorted_snapshots,
        train_frontend, write_particle_run
 export write_verdict
+export advection_profile, advection_snapshots, advection_times, long_run_cases,
+       run_reconstruction, time_split, two_stream_beams_profile
 
 end
