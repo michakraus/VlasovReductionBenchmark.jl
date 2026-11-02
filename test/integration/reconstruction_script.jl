@@ -169,6 +169,8 @@ end
 
             @test occursin("## $d, $s\n", page)
         end
+        # each table is followed by the mode counts of its dataset
+        @test count("Mode counts: `modes_99` = ", page) == 2 * length(datasets)
         @test occursin("No row failed.", page)
     end
 end

@@ -13,8 +13,13 @@ fluctuation to relate an error to.
 """
 const FLUCTUATION_FLOOR = 1e-14
 
-"The relative tolerance within which the per-snapshot errors reproduce the aggregate error."
-const AGGREGATE_RTOL = 1e-12
+"""
+The absolute tolerance within which the per-snapshot errors reproduce the aggregate error. The
+errors are dimensionless, and the rounding of `norm` over the ``n_x n_v m`` entries of a dataset
+reaches about ``10^{-12}`` on ``64 × 128 × 267``; a relative tolerance fails on an exact
+reconstruction.
+"""
+const AGGREGATE_TOLERANCE = 1e-10
 
 "The two splits: train and test on every snapshot, or train on ``t ≤ T/2`` and test on the rest."
 const RECONSTRUCTION_SPLITS = ("in-sample", "extrapolation")
@@ -188,7 +193,7 @@ The errors of the `nx × nv × m` test snapshots `S` of `dataset`: the aggregate
 With a `LinearReduction` or an `AutoencoderReduction` `r`, ``R`` is its reconstruction around
 `r.f0`, each error is its [`relative_projection_error`](@ref), and the aggregate comes from that
 function on all of `S`; it throws an error when the per-snapshot errors do not reproduce it to
-[`AGGREGATE_RTOL`](@ref). With an integer `rank`, ``R`` is the truncated SVD of each
+[`AGGREGATE_TOLERANCE`](@ref). With an integer `rank`, ``R`` is the truncated SVD of each
 `nx × nv` fluctuation around `f0` ([`rank_error`](@ref)), and the aggregate comes from the
 per-snapshot errors.
 
@@ -200,7 +205,7 @@ function reconstruction_errors(dataset::AbstractString, r, S::AbstractArray{<:An
     errors = [relative_projection_error(r, S[:, :, s:s]) for s in axes(S, 3)]
     aggregate = relative_projection_error(r, S)
     combined = combined_error(errors, norms)
-    abs(combined - aggregate) ≤ AGGREGATE_RTOL * aggregate || error(
+    abs(combined - aggregate) ≤ AGGREGATE_TOLERANCE || error(
         "$dataset: the per-snapshot errors give the aggregate $combined, not the $aggregate " *
         "of relative_projection_error")
     return (
@@ -332,9 +337,9 @@ end
 Write `<results_dir>/reconstruction.md` from `reconstruction.csv` and `singular_values.csv` in
 `results_dir`, and return its path. For each dataset and split it gives a table of the
 aggregate `error` per method and `n`: for a network the median over its seeds, with the range in
-brackets, and below the methods the state size of `"rank-r"`. A section after the tables gives
-the mode counts of each dataset. A row whose status is not `"ok"` enters no median; the page
-lists every such row with its status. Every value comes from the two CSV files: each error with
+brackets, below the methods the state size of `"rank-r"`, and below the table the mode counts
+of the dataset. A row whose status is not `"ok"` enters no median; the page counts such rows
+and lists each with its status. Every other value comes from the two CSV files: each error with
 the four significant digits of [`format_value`](@ref), each count and state size as written.
 """
 function write_reconstruction_page(results_dir::AbstractString)
@@ -378,17 +383,19 @@ function write_reconstruction_page(results_dir::AbstractString)
                 println(io, "| rank-r state size | ", join(sizes, " | "), " |")
             end
             println(io)
+            for m in filter(m -> m["dataset"] == dataset, modes)
+                println(
+                    io, "Mode counts: `modes_99` = $(m["modes_99"]), `modes_9999` = ",
+                    "$(m["modes_9999"]) of $(m["snapshots"]) snapshots.\n")
+            end
         end
-        println(io, "## Mode counts\n")
-        for m in modes
-            println(
-                io, "- $(m["dataset"]): `modes_99` = $(m["modes_99"]), `modes_9999` = ",
-                "$(m["modes_9999"]) of $(m["snapshots"]) snapshots")
-        end
-        println(io)
         failed = filter(r -> r["status"] != "ok", rows)
         println(io, "## Failed rows\n")
-        isempty(failed) && println(io, "No row failed.")
+        if isempty(failed)
+            println(io, "No row failed.")
+        else
+            println(io, "$(length(failed)) of $(length(rows)) rows failed:\n")
+        end
         # only a network trains, so every failed row has a seed
         for r in failed
             println(
@@ -410,7 +417,7 @@ two `mode.advection_fractions`, and the snapshots of the three [`long_run_cases`
 function reconstruction_datasets(mode, runs_dir::AbstractString)
     nx, nv = mode.grid
     k = linear_landau().k
-    datasets = Any[]
+    datasets = Tuple{String, Array{Float64, 3}, Vector{Float64}}[]
     for (name, fraction) in pairs(mode.advection_fractions)
         times = advection_times(nv, k; fraction)
         push!(datasets, (string(name), advection_snapshots(nx, nv, times), times))
