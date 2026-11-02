@@ -251,12 +251,12 @@
 
 ### K22 · No test reaches the full mode of `run_reconstruction`, so no test shows that it takes its settings from `reconstruction_mode(smoke)`.
 
-- **location:** `src/reconstruction.jl:443`
+- **location:** `src/reconstruction.jl:448`
 - **evidence:** the core test checks both branches of `reconstruction_mode` and the seeds of
   each method under the full mode (`method_seeds`), but only the smoke run of the script calls
   `run_reconstruction`. The mutant `mode = reconstruction_mode(smoke)` →
   `mode = reconstruction_mode(true)` survives both test files of the probes, and so does
-  `steps = mode.steps` → `steps = 100` (`src/reconstruction.jl:464`), because the smoke mode
+  `steps = mode.steps` → `steps = 100` (`src/reconstruction.jl:469`), because the smoke mode
   trains for 100 steps. The full mode is a script run, outside the suite.
 - **kind:** missing test
 - **found:** 2026-11-02

@@ -199,6 +199,10 @@ end
     @test occursin(
         r"^fixture: the per-snapshot errors give the aggregate 0\.5, not the 0\.25 of relative_projection_error$",
         e.msg)
+    # an exact reconstruction: errors of order 1e-16 pass the absolute tolerance
+    row = reconstruction_row(
+        "fixture", fourier_fixture([1.0, 0.9, 0.8, 5.0, 4.0, 3.0]), 0:5, "in-sample", "POD", 6)
+    @test parse(Float64, row["error"]) < 1e-14
 end
 
 @testset "Singular values and mode counts" begin

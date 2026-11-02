@@ -13,8 +13,13 @@ fluctuation to relate an error to.
 """
 const FLUCTUATION_FLOOR = 1e-14
 
-"The relative tolerance within which the per-snapshot errors reproduce the aggregate error."
-const AGGREGATE_RTOL = 1e-12
+"""
+The absolute tolerance within which the per-snapshot errors reproduce the aggregate error. The
+errors are dimensionless, and the rounding of `norm` over the ``n_x n_v m`` entries of a dataset
+reaches about ``10^{-12}`` on ``64 × 128 × 267``; a relative tolerance fails on an exact
+reconstruction.
+"""
+const AGGREGATE_TOLERANCE = 1e-10
 
 "The two splits: train and test on every snapshot, or train on ``t ≤ T/2`` and test on the rest."
 const RECONSTRUCTION_SPLITS = ("in-sample", "extrapolation")
@@ -188,7 +193,7 @@ The errors of the `nx × nv × m` test snapshots `S` of `dataset`: the aggregate
 With a `LinearReduction` or an `AutoencoderReduction` `r`, ``R`` is its reconstruction around
 `r.f0`, each error is its [`relative_projection_error`](@ref), and the aggregate comes from that
 function on all of `S`; it throws an error when the per-snapshot errors do not reproduce it to
-[`AGGREGATE_RTOL`](@ref). With an integer `rank`, ``R`` is the truncated SVD of each
+[`AGGREGATE_TOLERANCE`](@ref). With an integer `rank`, ``R`` is the truncated SVD of each
 `nx × nv` fluctuation around `f0` ([`rank_error`](@ref)), and the aggregate comes from the
 per-snapshot errors.
 
@@ -200,7 +205,7 @@ function reconstruction_errors(dataset::AbstractString, r, S::AbstractArray{<:An
     errors = [relative_projection_error(r, S[:, :, s:s]) for s in axes(S, 3)]
     aggregate = relative_projection_error(r, S)
     combined = combined_error(errors, norms)
-    abs(combined - aggregate) ≤ AGGREGATE_RTOL * aggregate || error(
+    abs(combined - aggregate) ≤ AGGREGATE_TOLERANCE || error(
         "$dataset: the per-snapshot errors give the aggregate $combined, not the $aggregate " *
         "of relative_projection_error")
     return (
@@ -412,7 +417,7 @@ two `mode.advection_fractions`, and the snapshots of the three [`long_run_cases`
 function reconstruction_datasets(mode, runs_dir::AbstractString)
     nx, nv = mode.grid
     k = linear_landau().k
-    datasets = Any[]
+    datasets = Tuple{String, Array{Float64, 3}, Vector{Float64}}[]
     for (name, fraction) in pairs(mode.advection_fractions)
         times = advection_times(nv, k; fraction)
         push!(datasets, (string(name), advection_snapshots(nx, nv, times), times))
