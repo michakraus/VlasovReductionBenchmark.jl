@@ -3,9 +3,10 @@
 # channel, the frontend error, the Stage I error and the trained error at every split
 # (m_x, m_v) of n ∈ {4, 8, 16, 32}; through the DLRA channel, the truncated SVD of each snapshot
 # at the input ranks {4, 8, 16} encoded into the trained core; and through a network of both
-# channels trained on both, each channel and each translation between them. One seed, 2000
-# training steps, on 64 × 128 (smoke: 32 × 64, n ∈ {4, 8}, input rank 4, long runs to t = 40,
-# 100 steps). Run from the repository root:
+# channels trained on both, without and with the cross terms that train its translations, each
+# channel and each translation between them. One seed, 2000 training steps, on 64 × 128 (smoke:
+# 32 × 64, n ∈ {4, 8}, input rank 4, long runs to t = 40, 100 steps). Run from the repository
+# root:
 #
 #   julia --project scripts/channels.jl --runs-dir <d> --results-dir <r> [--smoke]
 #
