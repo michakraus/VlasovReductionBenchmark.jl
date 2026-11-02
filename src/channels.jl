@@ -151,6 +151,19 @@ function relative_errors(G::AbstractArray{<:Any, 3}, R::AbstractArray{<:Any, 3})
     return (error = norm(R - G) / norm(G), max_snapshot_error = maximum(snapshot))
 end
 
+"""
+    channel_fluctuations(dataset, S)
+
+The fluctuations of the `nx × nv × m` snapshots `S` of `dataset` around the
+[`background`](@ref) of the first. It throws the error of [`fluctuation_norms`](@ref) when a
+snapshot has no fluctuation, which would give [`relative_errors`](@ref) a `NaN` or an `Inf`.
+"""
+function channel_fluctuations(dataset::AbstractString, S::AbstractArray{<:Any, 3})
+    f0 = background(S[:, :, 1])
+    fluctuation_norms(dataset, S, f0)
+    return fluctuation(S, f0)
+end
+
 "The reconstruction of `G` by the `:grid` frontend of `nn` and its inverse, without the core."
 function frontend_reconstruction(nn, G::AbstractArray{<:Any, 3})
     ps = nn.params.frontends.grid
@@ -340,7 +353,7 @@ runs it with its checks and writes it there.
 function channel_datasets(mode, runs_dir::AbstractString)
     nx, nv = mode.grid
     k = linear_landau().k
-    datasets = Any[]
+    datasets = Tuple{String, Array{Float64, 3}, Vector{Float64}}[]
     for (name, fraction) in pairs(mode.advection_fractions)
         times = advection_times(nv, k; fraction)
         push!(datasets, (string(name), advection_snapshots(nx, nv, times), times))
@@ -446,10 +459,12 @@ end
 
 The input channels of the multi-modal network with the settings of [`channels_mode`](@ref), on
 the [`channel_datasets`](@ref), whose long runs are read from or written to `runs_dir`: for
-each dataset and `n`, the [`channel_rows`](@ref) of the fluctuation snapshots around the
-[`background`](@ref) of the first snapshot, written to `channel_splits.csv`, `channel_dlra.csv`
-and `channel_joint.csv` in `results_dir`, with the page of [`write_channels_page`](@ref). A failed training is a row with its status, and the script goes
-on. It prints the number of rows and of failed rows of each file, and returns the rows.
+each dataset and `n`, the [`channel_rows`](@ref) of its [`channel_fluctuations`](@ref),
+written to `channel_splits.csv`, `channel_dlra.csv` and `channel_joint.csv` in `results_dir`,
+with the page of [`write_channels_page`](@ref). A failed training is a row with its status, and
+the script goes on. A snapshot with no fluctuation stops it with the error of
+[`channel_fluctuations`](@ref). It prints the number of rows and of failed rows of each file,
+and returns the rows.
 """
 function run_channels(; runs_dir::AbstractString, results_dir::AbstractString,
         smoke::Bool = false)
@@ -462,7 +477,7 @@ function run_channels(; runs_dir::AbstractString, results_dir::AbstractString,
         joint = Dict{String, String}[])
     for (name, S, _) in channel_datasets(mode, runs_dir), n in mode.ns
 
-        these = channel_rows(name, fluctuation(S, background(S[:, :, 1])), n, mode)
+        these = channel_rows(name, channel_fluctuations(name, S), n, mode)
         append!(rows.splits, these.splits)
         append!(rows.dlra, these.dlra)
         push!(rows.joint, these.joint)

@@ -160,8 +160,9 @@ so `[Unreleased]` has no target version.
 - `scripts/channels.jl --runs-dir <d> --results-dir <r> [--smoke]`: the reconstruction error of
   the weight-tied multi-modal network through its input channels, in sample, on the five datasets
   of the reconstruction probes, whose long runs it reads from `<d>` where a file there holds the
-  same grid, amplitude and end time, and otherwise runs and writes there. For every split $m_x m_v = n$ of the grid channel
-  (`grid_splits`, 18 at $n \in \{4, 8, 16, 32\}$; smoke: 7 at $\{4, 8\}$) it writes the error of
+  same grid, amplitude and end time, and otherwise runs and writes there. For every split
+  $m_x m_v = n$ of the grid channel (`grid_splits`, 18 at $n \in \{4, 8, 16, 32\}$; smoke: 7 at
+  $\{4, 8\}$) it writes the error of
   the Tucker frontend and its inverse, the Stage I error of the untrained network
   (`channel_network`, the setup of `weight_tied_network` at any split), and the error after 2000
   training steps (smoke: 100) at the split of `PARITY_MODES` and at the split of the smallest
@@ -172,7 +173,8 @@ so `[Unreleased]` has no target version.
   with both channels, its DLRA bases from the Tucker `solve!` on the dense rank-8 states (smoke:
   rank 4), trains on the sum of the two `CharbonnierRelativeLoss` terms (`joint_loss`); the errors
   of each channel and of both translations go to `<r>/channel_joint.csv`. Every error is the
-  aggregate and the largest per-snapshot relative error, and `<r>/channels.md` tabulates them. The
-  checks without training run in the `core` group, the checks of the rows and the smoke mode in
-  the `slow` group; the full mode is a script run, outside the suite. `Printf` joins the test
-  environment, for the script test of the channels.
+  aggregate and the largest per-snapshot relative error, and `<r>/channels.md` tabulates them. A
+  snapshot with no fluctuation stops the script with its dataset and index
+  (`channel_fluctuations`). The checks without training run in the `core` group, the checks of
+  the rows and the smoke mode in the `slow` group; the full mode is a script run, outside the
+  suite.

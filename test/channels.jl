@@ -3,7 +3,8 @@ using HDF5: attrs, h5open
 using LinearAlgebra: Diagonal, norm, qr
 using Random: Xoshiro
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: PARITY_MODES, channel_datasets, channel_network,
+using VlasovReductionBenchmark: PARITY_MODES, channel_datasets, channel_fluctuations,
+                                channel_network,
                                 channels_mode,
                                 dense_states, dlra_network, fluctuation,
                                 frontend_reconstruction, grid_splits, joint_loss,
@@ -70,6 +71,24 @@ end
     @test e.error ≈ sqrt(9 + 1) / sqrt(26) rtol=1e-15
     # the maximum is that of the second snapshot
     @test e.max_snapshot_error ≈ 1 rtol=1e-15
+end
+
+@testset "A snapshot with no fluctuation" begin
+    # snapshot 1 carries a mode in x; snapshot 2 is its background alone
+    profile = [1.0, 2.0, 3.0]
+    S = cat(ones(4) * profile' + [1.0, -1.0, 1.0, -1.0] * [1.0, 0.0, 0.0]',
+        ones(4) * profile'; dims = 3)
+    # the background is that of the first snapshot, not of the last
+    T = cat(S[:, :, 1], ones(4) * [3.0, 1.0, 2.0]'; dims = 3)
+    @test channel_fluctuations("fixture", T) ≈ fluctuation(T, profile) rtol=1e-15
+    e = try
+        channel_fluctuations("fixture", S)
+        nothing
+    catch err
+        err
+    end
+    @test e isa ErrorException
+    @test occursin(r"^fixture: test snapshot 2 has no fluctuation: 0\.0 ≤ 1\.0e-14 times ", e.msg)
 end
 
 @testset "The network at the split of PARITY_MODES is weight_tied_network" begin
