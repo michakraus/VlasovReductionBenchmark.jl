@@ -199,7 +199,9 @@ so `[Unreleased]` has no target version.
   $10^{-10}$ times a scale of the pairing (as for a basis whose modes all hold $\cos(kx)$ and none
   $\sin(kx)$), and a block whose condition number exceeds $1/(100\,\varepsilon)$ are an
   `ArgumentError`. The odd–even block of a PSD basis is antisymmetric, so it is singular for
-  every $n$ with an odd $n/2$.
+  every $n$ with an odd $n/2$. A column of the basis of `psd_nonzero_reduction` with an
+  x-average above $10^{-12}$ in a velocity row, as when $n/2$ exceeds the rank of the snapshots
+  without their x-average, is an `ArgumentError` too.
 
 ### Bug Fixes
 

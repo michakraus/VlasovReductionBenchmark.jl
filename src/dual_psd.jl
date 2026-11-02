@@ -9,7 +9,10 @@ its `nv/2` velocity rows: the basis holds no ``k = 0`` content.
 
 It throws an `ArgumentError` for an odd `n`, for a snapshot or a background with a non-finite
 value, and when the parity snapshots without their x-average have at most `1e-12` times the
-norm of those with it, as for snapshots with no content beyond ``k = 0``.
+norm of those with it, as for snapshots with no content beyond ``k = 0``. It also throws when a
+column of ``Φ`` has an x-average above `1e-12` in some velocity row, as when `n/2` exceeds the
+numerical rank of the parity snapshots without their x-average, or when a small kept singular
+value amplifies round-off.
 """
 function psd_nonzero_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer)
     nx, nv, _ = size(S)
@@ -22,7 +25,22 @@ function psd_nonzero_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n
     norm(W0) > 1e-12 * norm(W) || throw(ArgumentError(
         "the snapshots hold only k = 0 content, which PSD without the x-average removes"))
     Φ = psd_basis(W0, n)
+    a, c = largest_xaverage(Φ, nx, nv)
+    a ≤ 1e-12 || throw(ArgumentError(
+        "column $c of Φ has an x-average of $a, above 1e-12: n/2 = $(n ÷ 2) exceeds the " *
+        "numerical rank of the snapshots without their x-average, or a small kept singular " *
+        "value amplifies round-off"))
     return LinearReduction(ParityCoordinates(), [Φ zero(Φ); zero(Φ) Φ], f0, nx, nv)
+end
+
+"""
+    largest_xaverage(Φ, nx, nv)
+
+The largest ``|\\sum_i Φ_{(l-1) n_x + i,\\, c}|`` over the columns `c` of `Φ` and its `nv/2`
+velocity rows `l`, and the column `c` that holds it.
+"""
+function largest_xaverage(Φ::AbstractMatrix, nx::Integer, nv::Integer)
+    return findmax(vec(maximum(abs, sum(reshape(Φ, nx, nv ÷ 2, :); dims = 1); dims = 2)))
 end
 
 """
@@ -107,6 +125,12 @@ odd–even block ``B`` is round-off, and when the 2-norm condition number of ``B
 whose modes all hold ``\\cos(kx)`` and none ``\\sin(kx)`` gives such a block, whose condition
 number can be small. The odd–even block of a PSD basis is antisymmetric, so it is singular for
 every odd `n/2`, and the condition guard throws there.
+
+The latent pairing is canonical to round-off relative to the scale of
+``Π_0 = `` `latent_pairing(r0, k)`: its even–even block is of order ``ε \\|Π_0\\|`` and its
+odd–odd block of order ``ε \\|C\\|^2 \\|Π_0\\|``. An absolute bound such as ``10^{-10} κ`` thus
+holds where ``\\|Π_0\\|`` is of order one, as for ``k = 0.5``, and not for a `k` far from order
+one. For a subnormal `k`, ``h_x`` overflows, and the round-off guard throws with a NaN ratio.
 """
 function dual_psd_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer,
         k::Real)
@@ -163,6 +187,9 @@ end
 
 The latent pairing ``T Π_0 T^{\\mathsf T}`` of the [`DualReduction`](@ref) `r`, with ``Π_0``
 the latent pairing of `r.r0` and ``T = \\operatorname{diag}(C, I)`` the map of its latent states.
+It equals ``[0\\; I; -I\\; 0]`` to round-off relative to the scale of ``Π_0``: the even–even
+block is of order ``ε \\|Π_0\\|`` and the odd–odd block of order ``ε \\|C\\|^2 \\|Π_0\\|``, so an
+absolute bound holds only where ``\\|Π_0\\|`` is of order one.
 """
 function latent_pairing(r::DualReduction, k::Real)
     Π0 = latent_pairing(r.r0, k)

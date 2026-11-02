@@ -99,6 +99,63 @@ end
     @test norm(U - Φ * (Φ' * U)) < 1e-10
 end
 
+@testset "a basis beyond the rank" begin
+    x, v = grid(CASE, NX, NV)
+    p = maxwellian.(v)
+    c, s_ = cos.(CASE.k .* x), sin.(CASE.k .* x)
+    xaverage(Φ) = maximum(abs, sum(reshape(Φ, NX, NV ÷ 2, :); dims = 1))
+
+    # two modes over five snapshots: the parity snapshots without their x-average have rank 2
+    S = reduce((A, B) -> cat(A, B; dims = 3),
+        [p' .+ 0.01s .* (c .* p') .+ 0.02s^2 .* (s_ .* (v .* p)') for s in 0:4])
+    f0 = background(S[:, :, 1])
+    for n in (8, 12)
+        e = thrown(() -> psd_nonzero_reduction(S, f0, n))
+        @test e isa ArgumentError
+        msg = sprint(showerror, e)
+        @test occursin("x-average", msg) && occursin("rank", msg)
+    end
+    @test thrown(() -> dual_psd_reduction(S, f0, 8, CASE.k)) isa ArgumentError
+    r = psd_nonzero_reduction(S, f0, 4)
+    @test xaverage(r.basis[1:(NX * NV ÷ 2), 1:2]) ≤ 1e-12
+
+    # the guard throws exactly where the largest x-average of a column of Φ exceeds 1e-12
+    function cosine_snapshots(γ)
+        modes = (
+            c .* p', c .* (v .^ 2 .* p)', c .* (v .^ 4 .* p)', γ .* c .* (v .^ 6 .* p)')
+        coefficients(s) = (0.01s, 0.003s^2, 0.002s^3, 0.001s^4)
+        return reduce((A, B) -> cat(A, B; dims = 3),
+            [p' .+ sum(coefficients(s) .* modes) for s in 0:6])
+    end
+    cases = [
+        (TS, 40), (TS, 80), [(cosine_snapshots(γ), 8) for γ in (0.01, 1.0, 10.0, 100.0)]...]
+    over, under = 0, 0
+    for (S, n) in cases
+        f0 = background(S[:, :, 1])
+        W3 = reshape(parity_snapshots(S, f0), NX, NV, :)
+        a = xaverage(psd_basis(reshape(W3 .- sum(W3; dims = 1) ./ NX, NX * NV, :), n))
+        e = thrown(() -> psd_nonzero_reduction(S, f0, n))
+        if a > 1e-12
+            over += 1
+            @test e isa ArgumentError && occursin("x-average", sprint(showerror, e))
+        else
+            under += 1
+            @test e === nothing
+        end
+    end
+    @test over ≥ 2 && under ≥ 2
+
+    # the x-average is taken per velocity row and in absolute value: column 2 has the
+    # x-averages -2e-10, 1e-10 and 1e-10 in rows 1 to 3, which cancel over the rows, and
+    # columns 1 and 3 none
+    Φ = zeros(NX * NV ÷ 2, 3)
+    Φ[1:NX, 2] .= -2e-10 / NX
+    Φ[(NX + 1):(3NX), 2] .= 1e-10 / NX
+    a, col = VlasovReductionBenchmark.largest_xaverage(Φ, NX, NV)
+    @test a ≈ 2e-10 rtol=1e-12
+    @test col == 2
+end
+
 @testset "no k = 0 content" begin
     v = grid(CASE, NX, NV)[2]
     S = reduce((A, B) -> cat(A, B; dims = 3),
@@ -111,7 +168,9 @@ end
     @test e isa ArgumentError
     # snapshots equal to the background: no content at all
     S = repeat(reshape(F0, 1, NV, 1); outer = (NX, 1, 3))
-    @test_throws ArgumentError psd_nonzero_reduction(S, F0, 4)
+    e = thrown(() -> psd_nonzero_reduction(S, F0, 4))
+    @test e isa ArgumentError
+    @test occursin("k = 0", sprint(showerror, e))
 end
 
 @testset "canonical latent pairing" begin
