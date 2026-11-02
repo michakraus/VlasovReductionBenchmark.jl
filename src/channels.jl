@@ -11,7 +11,7 @@ const CHANNEL_DLRA_COLUMNS = (
 
 "The columns of `channel_joint.csv`, in order."
 const CHANNEL_JOINT_COLUMNS = (
-    "dataset", "n", "mx", "mv", "r_in", "r_eff", "seed", "status",
+    "dataset", "n", "mx", "mv", "r_in", "r_eff", "seed", "cross", "status",
     "grid_error", "grid_max_snapshot_error", "dlra_error", "dlra_max_snapshot_error",
     "grid_to_dlra_error", "grid_to_dlra_max_snapshot_error", "dlra_to_grid_error",
     "dlra_to_grid_max_snapshot_error", "offline_seconds", "loss_first", "loss_last")
@@ -188,6 +188,21 @@ function joint_loss(model, ps, G, x)
 end
 
 """
+    cross_loss(model, ps, G, x)
+
+The sum of GeometricMachineLearning's `CrossModalLoss(:grid, :dlra)` on the fluctuation
+snapshots `G` and their factors `x` and `CrossModalLoss(:dlra, :grid)` on `x` and `G`, each
+with ``β_{\\mathrm{align}} = β_{\\mathrm{cross}} = 1/\\|G\\|_F^2``, so that each cross term is a
+squared relative error. It trains the translations of the two-channel network.
+"""
+function cross_loss(model, ps, G, x)
+    β = inv(sum(abs2, G))
+    to_dlra = GeometricMachineLearning.CrossModalLoss(:grid, :dlra; β_align = β, β_cross = β)
+    to_grid = GeometricMachineLearning.CrossModalLoss(:dlra, :grid; β_align = β, β_cross = β)
+    return to_dlra(model, ps, G, x) + to_grid(model, ps, x, G)
+end
+
+"""
     error_fields(prefix, errors)
 
 The fields `"<prefix>error"` and `"<prefix>max_snapshot_error"` of a row, from
@@ -287,27 +302,31 @@ function dlra_row(dataset::AbstractString, G::AbstractArray{<:Any, 3}, n::Intege
 end
 
 """
-    joint_row(dataset, G, n, r_in; seed, steps)
+    joint_row(dataset, G, n, r_in; seed, steps, cross)
 
 The row of `channel_joint.csv` of `dataset` at `n`: the [`channel_network`](@ref) at the split
 of [`PARITY_MODES`](@ref) with the `:dlra` frontend set from the dense states of the
 [`truncated_factors`](@ref) `x` of rank `r_in` of the fluctuation snapshots `G`, trained with
-[`train_network!`](@ref) for `steps` steps on the [`joint_loss`](@ref) of `G` and `x`. It holds
+[`train_network!`](@ref) for `steps` steps on the [`joint_loss`](@ref) of `G` and `x`, and with
+`cross = true` on its sum with the [`cross_loss`](@ref) of `G` and `x`. It holds
 the [`relative_errors`](@ref) against `G` of each channel's reconstruction and of each
 translation, `translate(nn, :grid, :dlra, G)` and `translate(nn, :dlra, :grid, x)`, with the
 decoded factors as dense states. A training whose status is not `"ok"` gives a row with that
 status and empty errors.
 """
 function joint_row(dataset::AbstractString, G::AbstractArray{<:Any, 3}, n::Integer,
-        r_in::Integer; seed::Integer, steps::Integer)
+        r_in::Integer; seed::Integer, steps::Integer, cross::Bool)
     mx, mv = PARITY_MODES[n]
     x = truncated_factors(G, r_in)
     nn = channel_network(G, mx, mv; seed, dlra = dense_states(x))
-    timed = @timed train_network!(ps -> joint_loss(nn.model, ps, G, x), nn.params, steps)
+    loss = cross ? ps -> joint_loss(nn.model, ps, G, x) + cross_loss(nn.model, ps, G, x) :
+           ps -> joint_loss(nn.model, ps, G, x)
+    timed = @timed train_network!(loss, nn.params, steps)
     row = empty_row(CHANNEL_JOINT_COLUMNS,
         merge(
             Dict("dataset" => dataset, "n" => string(n), "mx" => string(mx),
-                "mv" => string(mv), "r_in" => string(r_in), "seed" => string(seed)),
+                "mv" => string(mv), "r_in" => string(r_in), "seed" => string(seed),
+                "cross" => string(cross)),
             training_fields(timed)))
     timed.value.status == "ok" || return row
     decoded = channel_reconstruction(nn, :dlra, x)
@@ -330,16 +349,17 @@ end
 The rows of `dataset` at `n` on its fluctuation snapshots `G`, with the `seed`, `steps`,
 `dlra_ranks` and `joint_rank` of the [`channels_mode`](@ref) `mode`: the `splits` of
 [`split_rows`](@ref), a [`dlra_row`](@ref) per input rank from the trained network at the split
-of [`PARITY_MODES`](@ref), with the status of that training, and the `joint` row of
-[`joint_row`](@ref).
+of [`PARITY_MODES`](@ref), with the status of that training, and the `joint` rows of
+[`joint_row`](@ref), with `cross = false` and with `cross = true`.
 """
 function channel_rows(dataset::AbstractString, G::AbstractArray{<:Any, 3}, n::Integer, mode)
     result = split_rows(dataset, G, n; mode.seed, mode.steps)
     status = only(r for r in result.rows if r["parity_modes"] == "yes")["status"]
     dlra = [dlra_row(dataset, G, n, r_in, result.network, status; mode.seed)
             for r_in in mode.dlra_ranks]
-    return (splits = result.rows, dlra = dlra,
-        joint = joint_row(dataset, G, n, mode.joint_rank; mode.seed, mode.steps))
+    joint = [joint_row(dataset, G, n, mode.joint_rank; mode.seed, mode.steps, cross)
+             for cross in (false, true)]
+    return (splits = result.rows, dlra = dlra, joint = joint)
 end
 
 """
@@ -386,10 +406,10 @@ Write `<results_dir>/channels.md` from `channel_splits.csv`, `channel_dlra.csv` 
 `channel_joint.csv` in `results_dir`, and return its path. Per dataset it gives three tables:
 the frontend, Stage I and trained errors per `n` and split, with the split of
 [`PARITY_MODES`](@ref) and the best split marked; the DLRA channel's errors per `n` and input
-rank; and the two-channel network's errors per `n`. A row whose status is not `"ok"` shows `—`
-for its missing errors, and the page lists it with its status. Every value comes from the three
-CSV files: each error with the four significant digits of [`format_value`](@ref), each count as
-written.
+rank; and the two-channel network's errors per `n` and `cross`. A row whose status is not
+`"ok"` shows `—` for its missing errors, and the page lists it with its status. Every value
+comes from the three CSV files: each error with the four significant digits of
+[`format_value`](@ref), each count as written.
 """
 function write_channels_page(results_dir::AbstractString)
     splits = read_csv_rows(joinpath(results_dir, "channel_splits.csv"))
@@ -407,7 +427,9 @@ function write_channels_page(results_dir::AbstractString)
             "one of the smallest Stage I error. The DLRA channel encodes the truncated SVD of ",
             "each snapshot into the trained core of the grid network at the split of ",
             "`PARITY_MODES`; its errors are against the full fluctuation and against its ",
-            "input. The two-channel network trains on both channels at once.\n")
+            "input. The two-channel network trains on both channels at once, without ",
+            "(`cross = false`) and with (`cross = true`) the cross terms that train its ",
+            "translations.\n")
         for dataset in unique(r["dataset"] for r in splits)
             println(io, "## $dataset\n")
             println(io, "### The splits of the grid channel\n")
@@ -431,10 +453,12 @@ function write_channels_page(results_dir::AbstractString)
                     "$(cell(r, "input_error")) |")
             end
             println(io, "\n### The two-channel network\n")
-            println(io, "| n | (m_x, m_v) | r_in | grid | DLRA | grid → DLRA | DLRA → grid |")
-            println(io, "|:--|:--|:--|:--|:--|:--|:--|")
+            println(io,
+                "| n | (m_x, m_v) | r_in | cross | grid | DLRA | grid → DLRA | DLRA → grid |")
+            println(io, "|:--|:--|:--|:--|:--|:--|:--|:--|")
             for r in filter(r -> r["dataset"] == dataset, joint)
                 println(io, "| $(r["n"]) | ($(r["mx"]), $(r["mv"])) | $(r["r_in"]) | ",
+                    "$(r["cross"]) | ",
                     "$(cell(r, "grid_error")) | $(cell(r, "dlra_error")) | ",
                     "$(cell(r, "grid_to_dlra_error")) | $(cell(r, "dlra_to_grid_error")) |")
             end
@@ -480,10 +504,11 @@ function run_channels(; runs_dir::AbstractString, results_dir::AbstractString,
         these = channel_rows(name, channel_fluctuations(name, S), n, mode)
         append!(rows.splits, these.splits)
         append!(rows.dlra, these.dlra)
-        push!(rows.joint, these.joint)
+        append!(rows.joint, these.joint)
         @printf("  %s, n = %d: %s\n", name, n,
             join(
-                unique(r["status"] for r in (these.splits..., these.dlra..., these.joint)),
+                unique(r["status"]
+                for r in (these.splits..., these.dlra..., these.joint...)),
                 ", "))
         flush(stdout)
     end

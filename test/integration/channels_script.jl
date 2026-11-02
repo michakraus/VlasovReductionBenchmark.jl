@@ -77,14 +77,16 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
         @test length(dlra) == 10
         @test sort([(r["dataset"], r["n"], r["r_in"]) for r in dlra]) ==
               sort([(d, n, "4") for d in datasets for n in ("4", "8")])
-        @test length(joint) == 10
-        @test sort([(r["dataset"], r["n"], r["r_in"]) for r in joint]) ==
-              sort([(d, n, "4") for d in datasets for n in ("4", "8")])
+        # a joint row without and one with the cross terms per dataset and n
+        @test length(joint) == 20
+        @test sort([(r["dataset"], r["n"], r["r_in"], r["cross"]) for r in joint]) ==
+              sort([(d, n, "4", c) for d in datasets for n in ("4", "8")
+                    for c in ("false", "true")])
         @test all(r -> r["status"] == "ok", vcat(splits, dlra, joint))
         @test all(r -> r["seed"] == "42", vcat(splits, dlra, joint))
         @test occursin("channel_splits.csv: 35 rows, 0 failed", printed)
         @test occursin("channel_dlra.csv: 10 rows, 0 failed", printed)
-        @test occursin("channel_joint.csv: 10 rows, 0 failed", printed)
+        @test occursin("channel_joint.csv: 20 rows, 0 failed", printed)
 
         # per dataset and n: the split of PARITY_MODES, the best split by its Stage I error, and a
         # trained error on exactly those two
@@ -158,23 +160,41 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
         @test parse(Float64, r["input_max_snapshot_error"]) ≈
               maximum(snapshot_errors(R, input)) rtol=1e-10
 
-        # the two-channel network: the same training, and GML's encode, decode and translate
-        r = pick(joint)
+        # the two-channel network: the same training, and GML's encode, decode and translate;
+        # without the cross terms on joint_loss, with them on the sum of GML's
+        # CharbonnierRelativeLoss of each channel and CrossModalLoss of each direction, with
+        # both weights 1 / ‖G‖²
         dense(d) = stack(d.X[:, :, s] * d.S[:, :, s] * d.V[:, :, s]' for s in axes(G, 3))
-        two = channel_network(G, 2, 4; seed = 42, dlra = dense(x))
-        train_network!(ps -> joint_loss(two.model, ps, G, x), two.params, 100)
-        expected = Dict(
-            "grid_" => GML.decode(two, :grid, GML.encode(two, :grid, G)),
-            "dlra_" => dense(GML.decode(two, :dlra, GML.encode(two, :dlra, x))),
-            "grid_to_dlra_" => dense(GML.translate(two, :grid, :dlra, G)),
-            "dlra_to_grid_" => GML.translate(two, :dlra, :grid, x))
-        for (prefix, R) in expected
-            @test argmax(snapshot_errors(R, G)) > 1
-            @test parse(Float64, r[prefix * "error"]) ≈ relative(R, G) rtol=1e-10
-            @test parse(Float64, r[prefix * "max_snapshot_error"]) ≈
-                  maximum(snapshot_errors(R, G)) rtol=1e-10
+        β = 1 / sum(abs2, G)
+        own = GML.CharbonnierRelativeLoss()
+        to_dlra = GML.CrossModalLoss(:grid, :dlra; β_align = β, β_cross = β)
+        to_grid = GML.CrossModalLoss(:dlra, :grid; β_align = β, β_cross = β)
+        losses = Dict(
+            "false" => (m, ps) -> joint_loss(m, ps, G, x),
+            "true" =>
+                (m, ps) -> own(m, ps, :grid, G) + own(m, ps, :dlra, x) +
+                           to_dlra(m, ps, G, x) + to_grid(m, ps, x, G))
+        errors = Dict{String, Float64}()
+        for cross in ("false", "true")
+            r = pick(filter(row -> row["cross"] == cross, joint))
+            two = channel_network(G, 2, 4; seed = 42, dlra = dense(x))
+            train_network!(ps -> losses[cross](two.model, ps), two.params, 100)
+            expected = Dict(
+                "grid_" => GML.decode(two, :grid, GML.encode(two, :grid, G)),
+                "dlra_" => dense(GML.decode(two, :dlra, GML.encode(two, :dlra, x))),
+                "grid_to_dlra_" => dense(GML.translate(two, :grid, :dlra, G)),
+                "dlra_to_grid_" => GML.translate(two, :dlra, :grid, x))
+            for (prefix, R) in expected
+                @test argmax(snapshot_errors(R, G)) > 1
+                @test parse(Float64, r[prefix * "error"]) ≈ relative(R, G) rtol=1e-10
+                @test parse(Float64, r[prefix * "max_snapshot_error"]) ≈
+                      maximum(snapshot_errors(R, G)) rtol=1e-10
+            end
+            @test r["r_eff"] == "2"
+            errors[cross] = relative(expected["grid_to_dlra_"], G)
         end
-        @test r["r_eff"] == "2"
+        # the cross terms change the training
+        @test abs(errors["true"] - errors["false"]) > 1e-6
 
         # every number of the page, outside the names in backticks, is a value of a CSV file at
         # the four significant digits of the page

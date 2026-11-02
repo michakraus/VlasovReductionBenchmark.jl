@@ -178,3 +178,11 @@ so `[Unreleased]` has no target version.
   (`channel_fluctuations`). The checks without training run in the `core` group, the checks of
   the rows and the smoke mode in the `slow` group; the full mode is a script run, outside the
   suite.
+- The two-channel network of `scripts/channels.jl` also trains its translations: for each dataset
+  and $n$, `<r>/channel_joint.csv` holds a row with `cross = false`, trained on `joint_loss` as
+  before, and one with `cross = true`, trained with the same seed and steps on `joint_loss` plus
+  `cross_loss`, the two `CrossModalLoss` terms `(:grid, :dlra)` and `(:dlra, :grid)` with both
+  weights $1/\|G\|_F^2$, so that each cross term is a squared relative error (40 joint rows in
+  full mode; smoke: 20). The page's table of the two-channel network gains the column `cross`.
+  The by-value check of the `cross = true` row trains its reference on GeometricMachineLearning's
+  losses, not on `joint_loss`, so it also catches a wrong joint loss (closes K27).

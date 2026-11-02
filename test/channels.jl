@@ -5,7 +5,7 @@ using Random: Xoshiro
 using VlasovReductionBenchmark
 using VlasovReductionBenchmark: PARITY_MODES, channel_datasets, channel_fluctuations,
                                 channel_network,
-                                channels_mode,
+                                channels_mode, cross_loss,
                                 dense_states, dlra_network, fluctuation,
                                 frontend_reconstruction, grid_splits, joint_loss,
                                 rank_error,
@@ -152,6 +152,31 @@ end
           arrays(channel_network(G, 2, 2; seed = 42).params.frontends.grid)
 end
 
+@testset "The cross terms of the two-channel network" begin
+    G = advection_fixture(12)
+    x = truncated_factors(G, 4)
+    nn = channel_network(G, 2, 2; seed = 42, dlra = dense_states(x))
+    dense(d) = stack(d.X[:, :, s] * d.S[:, :, s] * d.V[:, :, s]' for s in axes(d.X, 3))
+    # both CrossModalLoss terms with β = 1 / ‖G‖², from GML's encode and decode and the dense
+    # states: the alignment of the two latent states, once per direction, the grid state decoded
+    # in the DLRA channel against the dense input, and the DLRA state decoded in the grid channel
+    # against G
+    function by_hand(G)
+        zg, zd = GML.encode(nn, :grid, G), GML.encode(nn, :dlra, x)
+        to_dlra = dense(GML.decode(nn, :dlra, zg))
+        to_grid = GML.decode(nn, :grid, zd)
+        return (2 * sum(abs2, zg - zd) + sum(abs2, to_dlra - dense(x)) +
+                sum(abs2, to_grid - G)) / sum(abs2, G)
+    end
+    value = cross_loss(nn.model, nn.params, G, x)
+    @test value > 1e-3
+    @test abs(value - by_hand(G)) ≤ 10 * eps() * by_hand(G)
+    # the loss depends on G, not on the DLRA input alone
+    H = G[:, :, end:-1:1]
+    @test abs(cross_loss(nn.model, nn.params, H, x) - value) > 1e-3 * value
+    @test abs(cross_loss(nn.model, nn.params, H, x) - by_hand(H)) ≤ 10 * eps() * by_hand(H)
+end
+
 @testset "Channels mode" begin
     @test channels_mode(false) ==
           (grid = (64, 128), ns = (4, 8, 16, 32), steps = 2000, seed = 42,
@@ -218,18 +243,21 @@ end
             "input_error,input_max_snapshot_error\n" *
             "d1,4,2,2,4,,42,failed at step 3,,,,\n")
         write(joinpath(dir, "channel_joint.csv"),
-            "dataset,n,mx,mv,r_in,r_eff,seed,status,grid_error,grid_max_snapshot_error," *
+            "dataset,n,mx,mv,r_in,r_eff,seed,cross,status,grid_error,grid_max_snapshot_error," *
             "dlra_error,dlra_max_snapshot_error,grid_to_dlra_error," *
             "grid_to_dlra_max_snapshot_error,dlra_to_grid_error," *
             "dlra_to_grid_max_snapshot_error,offline_seconds,loss_first,loss_last\n" *
-            "d1,4,2,2,4,2,42,ok,0.125,0.25,0.1875,0.25,0.3125,0.5,0.4375,0.5,2.5,0.2,0.1\n")
+            "d1,4,2,2,4,2,42,false,ok,0.125,0.25,0.1875,0.25,0.3125,0.5,0.4375,0.5,2.5,0.2," *
+            "0.1\n" *
+            "d1,4,2,2,4,2,42,true,ok,0.15,0.25,0.175,0.25,0.2,0.5,0.225,0.5,2.5,0.3,0.1\n")
         page = read(write_channels_page(dir), String)
         @test occursin("## d1\n", page)
         @test occursin("| 4 | (1, 4) | 0.5 | 0.625 | 0.25 | best |", page)
         @test occursin("| 4 | (2, 2) | 0.375 | 0.6875 | — | `PARITY_MODES` |", page)
         @test occursin("| 4 | (4, 1) | 0.95 | 0.96 | — |  |", page)
         @test occursin("| 4 | (2, 2) | 4 | — | — | — |", page)
-        @test occursin("| 4 | (2, 2) | 4 | 0.125 | 0.1875 | 0.3125 | 0.4375 |", page)
+        @test occursin("| 4 | (2, 2) | 4 | false | 0.125 | 0.1875 | 0.3125 | 0.4375 |", page)
+        @test occursin("| 4 | (2, 2) | 4 | true | 0.15 | 0.175 | 0.2 | 0.225 |", page)
         @test occursin(
             "- `channel_splits.csv`: d1, n = 4, (m_x, m_v) = (2, 2): failed at step 3", page)
         @test occursin(

@@ -116,9 +116,9 @@ end
 @testset "Rows of the two-channel network" begin
     _, _, G = advection_fixture(12)
     x = truncated_factors(G, 4)
-    row = joint_row("fixture", G, 4, 4; seed = 42, steps = 3)
-    @test (row["mx"], row["mv"], row["r_in"], row["r_eff"], row["status"]) ==
-          ("2", "2", "4", "2", "ok")
+    row = joint_row("fixture", G, 4, 4; seed = 42, steps = 3, cross = false)
+    @test (row["mx"], row["mv"], row["r_in"], row["r_eff"], row["cross"], row["status"]) ==
+          ("2", "2", "4", "2", "false", "ok")
     @test parse(Float64, row["loss_last"]) < parse(Float64, row["loss_first"])
     # each error against the fluctuation, from GML's encode, decode and translate of the same
     # training
@@ -136,9 +136,12 @@ end
     # a translation is not the round trip of its source channel
     @test abs(expected["grid_to_dlra_error"] - expected["grid_error"]) > 1e-6
     @test abs(expected["dlra_to_grid_error"] - expected["dlra_error"]) > 1e-6
-    row = joint_row("fixture", G, 4, 4; seed = 42, steps = 0)
-    @test occursin(r"^failed", row["status"])
-    @test row["grid_error"] == row["dlra_to_grid_error"] == row["r_eff"] == ""
+    for cross in (false, true)
+        row = joint_row("fixture", G, 4, 4; seed = 42, steps = 0, cross)
+        @test row["cross"] == string(cross)
+        @test occursin(r"^failed", row["status"])
+        @test row["grid_error"] == row["dlra_to_grid_error"] == row["r_eff"] == ""
+    end
 end
 
 @testset "The rows of one dataset and n" begin
@@ -148,11 +151,13 @@ end
     @test length(rows.splits) == 3
     @test [(r["r_in"], r["status"]) for r in rows.dlra] == [("2", "ok"), ("3", "ok")]
     @test all(r -> r["error"] != "", rows.dlra)
-    @test (rows.joint["r_in"], rows.joint["status"]) == ("3", "ok")
+    # one joint row without and one with the cross terms, of the same seed
+    @test [(r["r_in"], r["cross"], r["seed"], r["status"]) for r in rows.joint] ==
+          [("3", "false", "42", "ok"), ("3", "true", "42", "ok")]
     # the DLRA rows take the status of the training at the split of PARITY_MODES
     rows = channel_rows("fixture", G, 4, merge(mode, (steps = 0,)))
     i3 = only(r for r in rows.splits if r["parity_modes"] == "yes")
     @test occursin(r"^failed", i3["status"])
     @test all(r -> r["status"] == i3["status"] && r["error"] == "", rows.dlra)
-    @test occursin(r"^failed", rows.joint["status"])
+    @test all(r -> occursin(r"^failed", r["status"]), rows.joint)
 end
