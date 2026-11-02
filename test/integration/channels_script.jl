@@ -86,7 +86,7 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
         @test occursin("channel_dlra.csv: 10 rows, 0 failed", printed)
         @test occursin("channel_joint.csv: 10 rows, 0 failed", printed)
 
-        # per dataset and n: I3's split, the best split by its Stage I error, and a trained
+        # per dataset and n: the split of PARITY_MODES, the best split by its Stage I error, and a trained
         # error on exactly those two
         for d in datasets, n in (4, 8)
 
@@ -104,7 +104,8 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
             end
         end
 
-        # one row of each file by value, on the two-stream run at n = 8, I3's split (2, 4)
+        # one row of each file by value, on the two-stream run at n = 8 and the split (2, 4) of
+        # PARITY_MODES
         S, f0, G = long_run(runs, "two_stream_long_alpha0.05.h5")
         @test size(S) == (32, 64, 81)
         pick(rows) = only(filter(
@@ -112,7 +113,7 @@ snapshot_errors(R, G) = [relative(R[:, :, s], G[:, :, s]) for s in axes(G, 3)]
                  (r["mx"], r["mv"]) == ("2", "4"),
             rows))
 
-        # the Stage I and the trained error from I3's network and I3's training
+        # the Stage I and the trained error from weight_tied_network and train_weight_tied
         r = pick(splits)
         stage1 = reconstruction_errors("two_stream_long",
             weight_tied_reduction(weight_tied_network(G, 8; seed = 42), f0, 32, 64), S)

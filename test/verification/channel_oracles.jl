@@ -35,13 +35,14 @@ relative(a, b) = norm(a - b) / norm(b)
     stage1 = [parse(Float64, r["stage1_error"]) for r in rows]
     @test [r["best"] for r in rows] == [i == argmin(stage1) ? "yes" : "no" for i in 1:3]
 
-    # the Stage I error of I3's split is that of I3's untrained network, by I3's lift
+    # the Stage I error at the split of PARITY_MODES is that of weight_tied_network, through
+    # the lift of weight_tied_reduction
     i3 = rows[2]
     reference = reconstruction_errors("fixture",
         weight_tied_reduction(weight_tied_network(G, 4; seed = 42), f0, 32, 64), S)
     @test parse(Float64, i3["stage1_error"]) ≈ reference.error rtol=1e-10
     @test parse(Float64, i3["stage1_max_snapshot_error"]) ≈ reference.max_snapshot_error rtol=1e-10
-    # its trained error is that of I3's training, and differs from the Stage I error
+    # its trained error is that of train_weight_tied, and differs from the Stage I error
     trained = train_weight_tied(S, f0, 4; seed = 42, steps = 5)
     reference = reconstruction_errors("fixture", trained.reduction, S)
     @test parse(Float64, i3["trained_error"]) ≈ reference.error rtol=1e-10
@@ -52,7 +53,7 @@ relative(a, b) = norm(a - b) / norm(b)
     @test parse(Float64, i3["offline_seconds"]) > 0
     @test arrays(nn.params.frontends) == arrays(trained.network.params.frontends)
     @test arrays(nn.params.core) == arrays(trained.network.params.core)
-    # a split that is neither I3's nor the best is not trained
+    # a split that is neither that of PARITY_MODES nor the best is not trained
     for r in rows
         if r["parity_modes"] == r["best"] == "no"
             @test r["trained_error"] == r["loss_first"] == r["offline_seconds"] == ""
@@ -80,8 +81,11 @@ relative(a, b) = norm(a - b) / norm(b)
 end
 
 @testset "Rows of the DLRA channel" begin
-    S, f0, G = advection_fixture(12)
+    _, _, G = advection_fixture(12)
     rows, nn = split_rows("fixture", G, 8; seed = 42, steps = 3)
+    # here the best split, (4, 2), is not the (2, 4) of PARITY_MODES, and both are trained
+    @test [(r["mx"], r["mv"]) for r in rows if r["best"] == "yes"] == [("4", "2")]
+    @test [r["trained_error"] != "" for r in rows] == [false, true, true, false]
     row = dlra_row("fixture", G, 8, 4, nn, "ok"; seed = 42)
     @test (row["mx"], row["mv"], row["r_in"], row["seed"], row["status"]) ==
           ("2", "4", "4", "42", "ok")
@@ -110,7 +114,7 @@ end
 end
 
 @testset "Rows of the two-channel network" begin
-    S, f0, G = advection_fixture(12)
+    _, _, G = advection_fixture(12)
     x = truncated_factors(G, 4)
     row = joint_row("fixture", G, 4, 4; seed = 42, steps = 3)
     @test (row["mx"], row["mv"], row["r_in"], row["r_eff"], row["status"]) ==
@@ -138,14 +142,14 @@ end
 end
 
 @testset "The rows of one dataset and n" begin
-    S, f0, G = advection_fixture(12)
+    _, _, G = advection_fixture(12)
     mode = (seed = 42, steps = 2, dlra_ranks = (2, 3), joint_rank = 3)
     rows = channel_rows("fixture", G, 4, mode)
     @test length(rows.splits) == 3
     @test [(r["r_in"], r["status"]) for r in rows.dlra] == [("2", "ok"), ("3", "ok")]
     @test all(r -> r["error"] != "", rows.dlra)
     @test (rows.joint["r_in"], rows.joint["status"]) == ("3", "ok")
-    # the DLRA rows take the status of the training at I3's split
+    # the DLRA rows take the status of the training at the split of PARITY_MODES
     rows = channel_rows("fixture", G, 4, merge(mode, (steps = 0,)))
     i3 = only(r for r in rows.splits if r["parity_modes"] == "yes")
     @test occursin(r"^failed", i3["status"])

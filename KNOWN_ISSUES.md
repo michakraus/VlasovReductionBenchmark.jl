@@ -260,3 +260,13 @@
   trains for 100 steps. The full mode is a script run, outside the suite.
 - **kind:** missing test
 - **found:** 2026-11-02
+
+### K23 · No test reaches the full mode of `run_channels`, so no test shows that it takes its settings from `channels_mode(smoke)`.
+
+- **location:** `src/channels.jl:456`
+- **evidence:** the core test checks both branches of `channels_mode`, but only the smoke run of
+  the script calls `run_channels`. The mutant `mode = channels_mode(smoke)` →
+  `mode = channels_mode(true)` survives the test files of the channels, because every test of
+  `run_channels` passes `smoke = true`. The full mode is a script run, outside the suite.
+- **kind:** missing test
+- **found:** 2026-11-02

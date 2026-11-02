@@ -18,12 +18,12 @@ const GML = GeometricMachineLearning
 arrays(x::AbstractArray) = [Array(parent(x))]
 arrays(x::Union{NamedTuple, Tuple}) = reduce(vcat, [arrays(v) for v in values(x)])
 
-# The first `m` snapshots of the advection over half a recurrence time of the smoke grid.
+# The fluctuations of the first `m` snapshots of the advection over half a recurrence time of
+# the smoke grid, around the background of the first.
 function advection_fixture(m)
     times = advection_times(64, 0.5; fraction = 0.5)[1:m]
     S = advection_snapshots(32, 64, times)
-    f0 = background(S[:, :, 1])
-    return S, f0, fluctuation(S, f0)
+    return fluctuation(S, background(S[:, :, 1]))
 end
 
 relative(a, b) = norm(a - b) / norm(b)
@@ -72,8 +72,8 @@ end
     @test e.max_snapshot_error ≈ 1 rtol=1e-15
 end
 
-@testset "The network of a split is that of I3 at its modes" begin
-    S, f0, G = advection_fixture(12)
+@testset "The network at the split of PARITY_MODES is weight_tied_network" begin
+    G = advection_fixture(12)
     for n in (4, 8)
         mine = channel_network(G, PARITY_MODES[n]...; seed = 42)
         theirs = weight_tied_network(G, n; seed = 42)
@@ -99,7 +99,7 @@ end
 end
 
 @testset "The DLRA channel encodes as the grid channel" begin
-    S, f0, G = advection_fixture(12)
+    G = advection_fixture(12)
     rng = Xoshiro(7)
     for (mx, mv) in ((2, 4), (4, 2), (1, 8))
         grid_nn = channel_network(G, mx, mv; seed = 42)
@@ -119,7 +119,7 @@ end
 end
 
 @testset "Two channels, one core" begin
-    S, f0, G = advection_fixture(12)
+    G = advection_fixture(12)
     x = truncated_factors(G, 4)
     nn = channel_network(G, 2, 2; seed = 42, dlra = dense_states(x))
     loss = CharbonnierRelativeLoss()

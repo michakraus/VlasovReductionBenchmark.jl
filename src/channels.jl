@@ -401,10 +401,9 @@ function write_channels_page(results_dir::AbstractString)
             println(io, "| n | (m_x, m_v) | frontend | Stage I | trained | split |")
             println(io, "|:--|:--|:--|:--|:--|:--|")
             for r in filter(r -> r["dataset"] == dataset, splits)
-                marks = [m
-                         for (m, c) in (("`PARITY_MODES`", "parity_modes"), (
-                                 "best", "best"))
-                         if r[c] == "yes"]
+                marks = filter(!isempty,
+                    [r["parity_modes"] == "yes" ? "`PARITY_MODES`" : "",
+                        r["best"] == "yes" ? "best" : ""])
                 println(io, "| $(r["n"]) | ($(r["mx"]), $(r["mv"])) | ",
                     "$(cell(r, "frontend_error")) | $(cell(r, "stage1_error")) | ",
                     "$(cell(r, "trained_error")) | $(join(marks, ", ")) |")
@@ -447,11 +446,9 @@ end
 
 The input channels of the multi-modal network with the settings of [`channels_mode`](@ref), on
 the [`channel_datasets`](@ref), whose long runs are read from or written to `runs_dir`: for
-each dataset and `n`, the [`split_rows`](@ref) of the fluctuation snapshots around the
-[`background`](@ref) of the first snapshot, a [`dlra_row`](@ref) per input rank from the
-trained network at the split of [`PARITY_MODES`](@ref), and the [`joint_row`](@ref), written to
-`channel_splits.csv`, `channel_dlra.csv` and `channel_joint.csv` in `results_dir`, with the page
-of [`write_channels_page`](@ref). A failed training is a row with its status, and the script goes
+each dataset and `n`, the [`channel_rows`](@ref) of the fluctuation snapshots around the
+[`background`](@ref) of the first snapshot, written to `channel_splits.csv`, `channel_dlra.csv`
+and `channel_joint.csv` in `results_dir`, with the page of [`write_channels_page`](@ref). A failed training is a row with its status, and the script goes
 on. It prints the number of rows and of failed rows of each file, and returns the rows.
 """
 function run_channels(; runs_dir::AbstractString, results_dir::AbstractString,

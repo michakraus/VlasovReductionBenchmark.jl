@@ -166,6 +166,32 @@ $\sum \sigma_i^2$ to `results/singular_values.csv`, and a page of both to
 $t = 40$, one seed and 100 training steps. A training whose loss does not fall, or becomes
 non-finite, is a row with a `failed` status, and the script goes on.
 
+## The input channels
+
+```sh
+julia --project scripts/channels.jl --runs-dir runs --results-dir results
+```
+
+The script measures the reconstruction error of the weight-tied multi-modal network through its
+input channels, in sample, on the five datasets of *The reconstruction probes*, around the
+spatial average of the first snapshot of each, at $n \in \{4, 8, 16, 32\}$, with seed 42 and 2000
+training steps. It reads each of the three long runs from `runs/` where a file there holds it on
+the same grid, at the same amplitude and to the same end time, and otherwise runs and writes it. The grid channel, `BilinearStiefelLayer(64, 128, m_x, m_v)`,
+is measured at every split $m_x m_v = n$ with $m_v \le N_v/2$ (18 splits): the error of the
+frontend and its inverse alone, the Stage I error of the untrained network, and the error after
+training at the split of *The autoencoders* (`PARITY_MODES`) and at the split of the smallest
+Stage I error. The DLRA channel, `LowRankStiefelLayer` with the bases of the trained grid network
+at the split of `PARITY_MODES`, encodes the truncated SVD $(X, S, V)$ of rank $r_{\mathrm{in}} \in \{4, 8, 16\}$ of each
+snapshot into the same core; its error is measured against the fluctuation and against its input.
+A network with both channels, its DLRA frontend set from the dense states $X S V^{\mathsf T}$ of
+rank 8, trains on the sum of the two losses; the script measures each channel and both
+translations between them against the fluctuation. It writes `results/channel_splits.csv`,
+`results/channel_dlra.csv`, `results/channel_joint.csv` and a page of the three,
+`results/channels.md`. `--smoke` runs $32 \times 64$, $n \in \{4, 8\}$, the long runs to
+$t = 40$, $r_{\mathrm{in}} = 4$ and 100 training steps. A training whose loss does not fall, or
+becomes non-finite, gives its rows a `failed` status and no errors of the trained network, and
+the script goes on.
+
 ## Tests
 
 ```sh
@@ -182,4 +208,6 @@ no test. The checks of the DLRA solver run in the `core` group, and the smoke an
 half* and no test. The `core` group runs `scripts/verdict.jl` and the rules of its comparison on
 fixture result files. The `core` group also runs the checks of the reconstruction probes, and the
 `slow` group the smoke mode of `scripts/reconstruction.jl`; its full mode is the script run of
-*The reconstruction probes* and no test.
+*The reconstruction probes* and no test. The checks of the input channels without training run in
+the `core` group, and the checks of their rows and the smoke mode of `scripts/channels.jl` in the
+`slow` group; its full mode is the script run of *The input channels* and no test.
