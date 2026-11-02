@@ -100,15 +100,16 @@ end
         @test abs(rank_error(g, r) - sqrt(sum(abs2, σ[(r + 1):end]) / sum(abs2, σ))) ≤ 1e-14
     end
 
-    # the aggregate over two snapshots of singular values (2, 1) and (3, 0.5), at rank 1
+    # the aggregate over two snapshots of singular values (3, 0.5) and (2, 1), at rank 1; the
+    # larger error is at the second snapshot
     f0 = [1.0, 2.0, 3.0, 4.0]
     W = Matrix(qr(randn(Xoshiro(5), 4, 2)).Q)
-    S = cat(f0' .+ U[:, 1:2] * Diagonal([2.0, 1.0]) * W',
-        f0' .+ U[:, 3:4] * Diagonal([3.0, 0.5]) * W'; dims = 3)
+    S = cat(f0' .+ U[:, 3:4] * Diagonal([3.0, 0.5]) * W',
+        f0' .+ U[:, 1:2] * Diagonal([2.0, 1.0]) * W'; dims = 3)
     errors = reconstruction_errors("fixture", 1, S, f0)
-    @test errors.error ≈ sqrt((1 + 0.25) / (5 + 9.25)) rtol=1e-14
-    @test errors.snapshot_errors ≈ [sqrt(1 / 5), sqrt(0.25 / 9.25)] rtol=1e-14
-    @test errors.max_snapshot_error == errors.snapshot_errors[1]
+    @test errors.error ≈ sqrt((0.25 + 1) / (9.25 + 5)) rtol=1e-14
+    @test errors.snapshot_errors ≈ [sqrt(0.25 / 9.25), sqrt(1 / 5)] rtol=1e-14
+    @test errors.max_snapshot_error == errors.snapshot_errors[2]
 end
 
 # Fourier modes in x of zero mean, times a profile in v, on the 8 × 4 fixture grid.
@@ -272,7 +273,10 @@ end
         @test occursin("| rank-r state size | 80 | — |", d1)
         @test occursin("| POD | 0.75 |", d2)
         @test !occursin("rank-r", d2)
-        @test occursin("`modes_99` = 2, `modes_9999` = 3 of 3 snapshots", page)
+        # the mode counts of a dataset stand in its own section, and only there
+        @test occursin("Mode counts: `modes_99` = 2, `modes_9999` = 3 of 3 snapshots.", d1)
+        @test !occursin("Mode counts", d2)
+        @test occursin("2 of 8 rows failed:", page)
         @test occursin("- d1, in-sample, untied, n = 4, seed 44: failed at step 7", page)
         @test !occursin("No row failed.", page)
         # a method with no completed row has no value, and a split with no row no table
