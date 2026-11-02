@@ -186,6 +186,18 @@ so `[Unreleased]` has no target version.
   full mode; smoke: 20). The page's table of the two-channel network gains the column `cross`.
   The by-value check of the `cross = true` row trains its reference on GeometricMachineLearning's
   losses, not on `joint_loss`, so it also catches a wrong joint loss (closes K27).
+- Dual PSD, a linear reduction whose latent coordinates are canonical for the Vlasov bracket
+  linearised at the background, and its matched control. `psd_nonzero_reduction` is PSD on the
+  parity snapshots with their x-average removed, so its basis holds no $k = 0$ content.
+  `latent_pairing(r, k)` is the matrix of the discrete linearised pairing
+  $-h_x h_v \sum f_0' (D_x m) m'$ of the latent coordinate functionals of a parity reduction, with
+  the spectral $D_x$ and a second-order $f_0'$. `dual_psd_reduction(S, f0, n, k)` returns a
+  `DualReduction`: PSD without the x-average with its odd (`q`) latent block mapped by the inverse
+  of the odd–even block of that pairing, so that its pairing is $[0\; I; -I\; 0]$; its even (`p`)
+  block and its reconstruction are those of PSD without the x-average. `pairing_condition` gives
+  the condition number of the odd–even block, and a block whose condition number exceeds
+  $1/(100\,\varepsilon)$ is an `ArgumentError`. The odd–even block of a PSD basis is
+  antisymmetric, so it is singular for every $n$ with an odd $n/2$.
 
 ### Bug Fixes
 
