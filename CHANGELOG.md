@@ -186,6 +186,17 @@ so `[Unreleased]` has no target version.
   full mode; smoke: 20). The page's table of the two-channel network gains the column `cross`.
   The by-value check of the `cross = true` row trains its reference on GeometricMachineLearning's
   losses, not on `joint_loss`, so it also catches a wrong joint loss (closes K27).
+- The latent dynamics of a reduction: `latent_snapshots` encodes the snapshots of a run as its
+  latent trajectory, and `qp_split` splits a trajectory $[q; p]$, `q` first, as the PSD
+  reductions and the weight-tied network write it. `train_latent_sympnet` trains a
+  GeometricMachineLearning `GSympNet` of 4 layers and upscaling $2n$ on the one-step pairs of
+  the first `m_train` latent snapshots, with Adam and `Batch(32)`; the same seed gives the same
+  network and loss history, and the global random number generator keeps its state.
+  `latent_rollout` rolls a network out from a latent vector, and `latent_run` decodes the rollout
+  from the first snapshot and returns its errors relative to the fluctuation, as the root mean
+  square over the training snapshots and over the rest, the drifts of the energy, $L^1$, $L^2$
+  and mass on the grid of the case, and the status `"diverged"` with the first non-finite column
+  for a rollout that leaves the finite numbers. The tests run in the `core` group.
 - Dual PSD, a linear reduction whose latent coordinates are canonical for the Vlasov bracket
   linearised at the background, and its matched control. `psd_nonzero_reduction` is PSD on the
   parity snapshots with their x-average removed, so its basis holds no $k = 0$ content.

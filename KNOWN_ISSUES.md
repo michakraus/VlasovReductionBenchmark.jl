@@ -316,7 +316,38 @@
 - **kind:** missing test
 - **found:** 2026-11-02
 
-### K29 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a finite `k` so large that `k * nx` overflows.
+### K29 · `latent_run` gives the status "ok" to a finite latent rollout that decodes to non-finite values.
+
+- **location:** `src/latent_dynamics.jl:107`
+- **evidence:** the status checks the latent vectors only. A stub network whose rollout is
+  finite and whose column 10 is `1e300` gives `("ok", nothing, Inf, NaN)` for `status`,
+  `diverged_at`, `l2_error_in_sample` and `energy_drift`, so the row reads as a valid run with
+  non-finite errors and drifts. The plan decides the status for a non-finite latent rollout only.
+- **kind:** found late
+- **found:** 2026-11-02
+
+### K30 · `latent_snapshots` and `latent_rollout` throw errors that do not name the cause for zero snapshots.
+
+- **location:** `src/latent_dynamics.jl:9`
+- **evidence:** `latent_snapshots(r, S[:, :, 1:0])` throws "reducing over an empty collection is
+  not allowed", and `latent_rollout(nn, z0, 0)` (`src/latent_dynamics.jl:77`) throws
+  `BoundsError: attempt to access 8×0 Matrix`. The plan does not decide `m = 0`; an
+  `ArgumentError` for `m < 1` names the cause.
+- **kind:** found late
+- **found:** 2026-11-02
+
+### K31 · `qp_split` repeats the slicing of GeometricMachineLearning's `assign_q_and_p`.
+
+- **location:** `src/latent_dynamics.jl:18`
+- **evidence:** GeometricMachineLearning (`main` at `e4cd4aa9`) defines the public
+  `assign_q_and_p(x, N)` (`src/kernels/assign_q_and_p.jl:16` there), which splits the rows of `x`
+  into `q` and `p` in the same way. `qp_split` could be its parity guard and
+  `assign_q_and_p(Z, n ÷ 2)`; this saves no line and removes a duplicate of the dependency's
+  split.
+- **kind:** upstream
+- **found:** 2026-11-02
+
+### K32 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a finite `k` so large that `k * nx` overflows.
 
 - **location:** `src/dual_psd.jl:144`
 - **evidence:** `latent_pairing` accepts every positive finite `k`, but `h_x = 2π / (k * nx)` is
@@ -328,7 +359,7 @@
 - **kind:** found late
 - **found:** 2026-11-02
 
-### K30 · `psd_nonzero_reduction` and `dual_psd_reduction` throw from `psd_basis`, not from a guard of their own, for `n = 0` and for an `n` above four times the number of snapshots.
+### K33 · `psd_nonzero_reduction` and `dual_psd_reduction` throw from `psd_basis`, not from a guard of their own, for `n = 0` and for an `n` above four times the number of snapshots.
 
 - **location:** `src/dual_psd.jl:27`
 - **evidence:** on 32 × 64 with 10 snapshots, `psd_nonzero_reduction(S, f0, n)` throws
@@ -338,7 +369,7 @@
 - **kind:** found late
 - **found:** 2026-11-02
 
-### K31 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a small `k` whose odd–even block is subnormal and passes both guards.
+### K34 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a small `k` whose odd–even block is subnormal and passes both guards.
 
 - **location:** `src/dual_psd.jl:153`
 - **evidence:** the odd–even block and its scale are both of order `k²`. On 32 × 64 with the 40

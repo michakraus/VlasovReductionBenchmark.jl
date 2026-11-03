@@ -18,6 +18,10 @@ in time.
 
 The input channels: the reconstruction error of the multi-modal network through its grid
 channel at every split of its modes, through its DLRA channel, and through both at once.
+
+The latent dynamics: a G-SympNet trained on the latent trajectory of a reduction and rolled out
+over the whole run, with its errors in sample and in extrapolation and the drifts of its
+invariants.
 """
 module VlasovReductionBenchmark
 
@@ -26,11 +30,12 @@ using GeometricBase: initialstate, integrate!, reset!
 using GeometricEquations: ODEProblem, functions, parameters
 using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
-using GeometricMachineLearning: GeometricMachineLearning, BilinearStiefelLayer, CPU,
-                                CharbonnierRelativeLoss, LowRankStiefelLayer,
-                                MultiModalSymplecticAutoencoder,
+using GeometricMachineLearning: GeometricMachineLearning, Batch, BilinearStiefelLayer, CPU,
+                                CharbonnierRelativeLoss, DataLoader, GSympNet,
+                                LowRankStiefelLayer, MultiModalSymplecticAutoencoder,
                                 NeuralNetwork, PSDArch, SymmetricSymplecticAutoencoder,
-                                SymplecticAutoencoder, WeightTiedSymplecticAutoencoder
+                                SymplecticAutoencoder, WeightTiedSymplecticAutoencoder,
+                                train!
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!, solve!
 using HDF5: attrs, h5open
@@ -39,7 +44,7 @@ using PoissonSolvers: FFTWBasis, Potential
 using PoissonSolvers: PeriodicBasisSpline
 using Printf: @printf, @sprintf
 using QuadGK: quadgk
-using Random: Xoshiro
+using Random: Xoshiro, default_rng, seed!
 using ReducedBasisMethods: CotangentLiftSVD, PODSVD, ReducedBasis
 using ReducedComplexityModeling: Parameter, ParameterSpace
 using Serialization: deserialize, serialize
@@ -66,6 +71,7 @@ include("particles.jl")
 include("verdict.jl")
 include("reconstruction.jl")
 include("channels.jl")
+include("latent_dynamics.jl")
 include("dual_psd.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
@@ -89,6 +95,7 @@ export write_verdict
 export advection_profile, advection_snapshots, advection_times, long_run_cases,
        run_reconstruction, time_split, two_stream_beams_profile
 export run_channels
+export latent_rollout, latent_run, latent_snapshots, qp_split, train_latent_sympnet
 export DualReduction, dual_psd_reduction, latent_pairing, pairing_condition,
        psd_nonzero_reduction
 
