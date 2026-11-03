@@ -197,6 +197,22 @@ so `[Unreleased]` has no target version.
   square over the training snapshots and over the rest, the drifts of the energy, $L^1$, $L^2$
   and mass on the grid of the case, and the status `"diverged"` with the first non-finite column
   for a rollout that leaves the finite numbers. The tests run in the `core` group.
+- Dual PSD, a linear reduction whose latent coordinates are canonical for the Vlasov bracket
+  linearised at the background, and its matched control. `psd_nonzero_reduction` is PSD on the
+  parity snapshots with their x-average removed, so its basis holds no $k = 0$ content.
+  `latent_pairing(r, k)` is the matrix of the discrete linearised pairing
+  $-h_x h_v \sum f_0' (D_x m) m'$ of the latent coordinate functionals of a parity reduction, with
+  the spectral $D_x$ and a second-order $f_0'$. `dual_psd_reduction(S, f0, n, k)` returns a
+  `DualReduction`: PSD without the x-average with its odd (`q`) latent block mapped by the inverse
+  of the odd–even block of that pairing, so that its pairing is $[0\; I; -I\; 0]$; its even (`p`)
+  block and its reconstruction are those of PSD without the x-average. `pairing_condition` gives
+  the condition number of the odd–even block. A block of round-off, whose 2-norm is at most
+  $10^{-10}$ times a scale of the pairing (as for a basis whose modes all hold $\cos(kx)$ and none
+  $\sin(kx)$), and a block whose condition number exceeds $1/(100\,\varepsilon)$ are an
+  `ArgumentError`. The odd–even block of a PSD basis is antisymmetric, so it is singular for
+  every $n$ with an odd $n/2$. A column of the basis of `psd_nonzero_reduction` with an
+  x-average above $10^{-12}$ in a velocity row, as when $n/2$ exceeds the rank of the snapshots
+  without their x-average, is an `ArgumentError` too.
 
 ### Bug Fixes
 

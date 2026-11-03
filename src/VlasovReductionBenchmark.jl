@@ -39,7 +39,7 @@ using GeometricMachineLearning: GeometricMachineLearning, Batch, BilinearStiefel
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!, solve!
 using HDF5: attrs, h5open
-using LinearAlgebra: Diagonal, dot, mul!, norm, opnorm, qr, svd, svdvals
+using LinearAlgebra: Diagonal, I, cond, dot, mul!, norm, opnorm, qr, svd, svdvals
 using PoissonSolvers: FFTWBasis, Potential
 using PoissonSolvers: PeriodicBasisSpline
 using Printf: @printf, @sprintf
@@ -72,6 +72,7 @@ include("verdict.jl")
 include("reconstruction.jl")
 include("channels.jl")
 include("latent_dynamics.jl")
+include("dual_psd.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -95,5 +96,7 @@ export advection_profile, advection_snapshots, advection_times, long_run_cases,
        run_reconstruction, time_split, two_stream_beams_profile
 export run_channels
 export latent_rollout, latent_run, latent_snapshots, qp_split, train_latent_sympnet
+export DualReduction, dual_psd_reduction, latent_pairing, pairing_condition,
+       psd_nonzero_reduction
 
 end

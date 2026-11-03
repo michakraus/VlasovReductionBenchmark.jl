@@ -17,6 +17,7 @@ if "core" in GROUPS
     @safetestset "Reconstruction probes" include("reconstruction.jl")
     @safetestset "Input channels" include("channels.jl")
     @safetestset "Latent dynamics" include("latent_dynamics.jl")
+    @safetestset "Dual PSD" include("dual_psd.jl")
 end
 
 if "slow" in GROUPS
