@@ -8,7 +8,7 @@ so `[Unreleased]` has no target version.
 ### New Features
 
 - The project, its tests (Aqua and ExplicitImports in the suite) and the shared git hooks and CI.
-  VlasovMethods comes from its `main` through `[sources]`, because no registered release binds
+  VlasovMethods 0.4 comes from the General registry; it is the first release that binds
   ReducedComplexityModeling 0.5.
 - The three test cases on the grid $x \in [0, 4\pi)$, $v \in [-6, 6]$: linear Landau damping
   (`linear_landau`, $\alpha = 0.01$, $t \le 40$), nonlinear Landau damping (`nonlinear_landau`,
@@ -236,12 +236,11 @@ so `[Unreleased]` has no target version.
 ### Bug Fixes
 
 - The `[compat]` floors of SimpleSolvers and Zygote are ones that the resolver can reach:
-  SimpleSolvers 0.14.2, the floor of VlasovMethods' `main`, and Zygote 0.7.5, the first 0.7 that
+  SimpleSolvers 0.14.2, the floor of VlasovMethods 0.4.0, and Zygote 0.7.5, the first 0.7 that
   allows ForwardDiff 1. With the floors 0.14.1 and 0.7.0, the Downgrade job failed its
   `forcedeps` check. The upper bounds do not change, and every direct dependency resolves at its
   floor together on Julia 1.12.
-- The `[compat]` entry of VlasovMethods is `"0.4"`, and the floor of PoissonSolvers is 0.6.2. The
-  `main` of VlasovMethods, which `[sources]` takes, is version 0.4.0, so with `"0.3"` a fresh
-  `Pkg.instantiate()` failed with an empty intersection. A 0.3 cannot resolve at all: the only
-  registered one, 0.3.0, binds ReducedComplexityModeling 0.1, not 0.5. VlasovMethods 0.4.0
-  requires PoissonSolvers 0.6.2, so the floor 0.6 could not be installed.
+- The `[compat]` entry of VlasovMethods is `"0.4"`, and the floor of PoissonSolvers is 0.6.2. With
+  `"0.3"`, a fresh `Pkg.instantiate()` failed with an empty intersection. A 0.3 cannot resolve
+  at all: the only registered one, 0.3.0, binds ReducedComplexityModeling 0.1, not 0.5.
+  VlasovMethods 0.4.0 requires PoissonSolvers 0.6.2, so the floor 0.6 could not be installed.
