@@ -221,3 +221,6 @@ so `[Unreleased]` has no target version.
   allows ForwardDiff 1. With the floors 0.14.1 and 0.7.0, the Downgrade job failed its
   `forcedeps` check. The upper bounds do not change, and every direct dependency resolves at its
   floor together on Julia 1.12.
+- The `[compat]` entry of VlasovMethods is `"0.3, 0.4"`. The `main` of VlasovMethods, which
+  `[sources]` takes, is version 0.4.0, so with `"0.3"` a fresh `Pkg.instantiate()` failed with an
+  empty intersection.

@@ -61,7 +61,7 @@ Serialization = "1"
 SimpleSolvers = "0.14.2"
 SpecialFunctions = "2"
 TOML = "1"
-VlasovMethods = "0.3"
+VlasovMethods = "0.3, 0.4"
 # 0.7.5 is the first 0.7 that allows ForwardDiff 1
 Zygote = "0.7.5"
 julia = "1.12"
