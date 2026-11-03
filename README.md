@@ -195,6 +195,35 @@ to $t = 40$, $r_{\mathrm{in}} = 4$ and 100 training steps. A training whose loss
 becomes non-finite, gives its rows a `failed` status and no errors of the trained network, and
 the script goes on.
 
+## The latent dynamics
+
+```sh
+julia --project scripts/latent_dynamics.jl --runs-dir runs --results-dir results
+```
+
+The script compares the reduced dynamics of four reductions on the three long runs of *The
+reconstruction probes* to $t = 100$ on $64 \times 128$, at $n \in \{4, 8, 16, 32\}$: PSD, PSD
+without the x-average (`psd_nonzero`), dual PSD, whose latent coordinates are canonical for the
+Vlasov bracket linearised at the initial background, and the weight-tied network
+(`weight_tied`, 2000 training steps). It reads each long run from `runs/` where a file there
+holds it on the same grid, at the same amplitude and to the same end time, and otherwise runs and
+writes it. Every reduction is built on the 101 snapshots with $t \le 50$, around the spatial
+average of the first snapshot. The latent trajectory of each is advanced by a G-SympNet of 4
+layers, trained on its one-step pairs for 2000 epochs with `Batch(32)` and the seeds 42, 43 and
+44, and rolled out from the first snapshot over the whole run; and, except for dual PSD, by the
+Galerkin model of the reduction, once for each linear reduction and once per seed for the
+network. Dual PSD has no Galerkin row, because its subspace is that of PSD without the
+x-average. The script writes one row per run, $n$, reduction, dynamics and seed to
+`results/latent_dynamics.csv`, with the relative errors against the fluctuation in sample and in
+extrapolation, the largest drifts of the energy, the $L^1$ and $L^2$ norms and the mass, the
+condition number of the pairing block of dual PSD (`pairing_condition`), and the share of the
+$k = 0$ content of the training fluctuations (`k0_fraction`). The page
+`results/latent_dynamics.md` gives the medians over the seeds per run. A rollout that diverges, a
+Galerkin run or a training that fails, and a dual PSD whose pairing block is singular or round-off
+(status `singular`) are rows with their status, and the script goes on. `--smoke` runs
+$32 \times 64$, the long runs to $t = 40$ (41 training snapshots), $n = 4$, seed 42, 20 epochs
+and 100 training steps.
+
 ## Tests
 
 ```sh
@@ -213,4 +242,7 @@ fixture result files. The `core` group also runs the checks of the reconstructio
 `slow` group the smoke mode of `scripts/reconstruction.jl`; its full mode is the script run of
 *The reconstruction probes* and no test. The checks of the input channels without training run in
 the `core` group, and the checks of their rows and the smoke mode of `scripts/channels.jl` in the
-`slow` group; its full mode is the script run of *The input channels* and no test.
+`slow` group; its full mode is the script run of *The input channels* and no test. The checks of
+the latent-dynamics comparison run in the `core` group, and the smoke mode of
+`scripts/latent_dynamics.jl` in the `slow` group; its full mode is the script run of *The latent
+dynamics* and no test.

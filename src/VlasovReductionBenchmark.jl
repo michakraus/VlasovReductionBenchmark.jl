@@ -22,6 +22,10 @@ channel at every split of its modes, through its DLRA channel, and through both 
 The latent dynamics: a G-SympNet trained on the latent trajectory of a reduction and rolled out
 over the whole run, with its errors in sample and in extrapolation and the drifts of its
 invariants.
+
+The latent-dynamics comparison: PSD, PSD without the x-average, dual PSD and the weight-tied
+network on the long runs, each with a SympNet and, except dual PSD, with its Galerkin model, as
+one CSV file and one page.
 """
 module VlasovReductionBenchmark
 
@@ -73,6 +77,7 @@ include("reconstruction.jl")
 include("channels.jl")
 include("latent_dynamics.jl")
 include("dual_psd.jl")
+include("latent_comparison.jl")
 
 export VlasovCase, grid, initial_condition, linear_landau, maxwellian, nonlinear_landau,
        two_stream, two_stream_profile, vlasov_model
@@ -98,5 +103,6 @@ export run_channels
 export latent_rollout, latent_run, latent_snapshots, qp_split, train_latent_sympnet
 export DualReduction, dual_psd_reduction, latent_pairing, pairing_condition,
        psd_nonzero_reduction
+export latent_comparison_mode, latent_comparison_rows, write_latent_page
 
 end

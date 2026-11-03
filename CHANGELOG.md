@@ -213,6 +213,25 @@ so `[Unreleased]` has no target version.
   every $n$ with an odd $n/2$. A column of the basis of `psd_nonzero_reduction` with an
   x-average above $10^{-12}$ in a velocity row, as when $n/2$ exceeds the rank of the snapshots
   without their x-average, is an `ArgumentError` too.
+- `scripts/latent_dynamics.jl --runs-dir <d> --results-dir <r> [--smoke]`: the latent dynamics
+  of PSD, PSD without the x-average, dual PSD and the weight-tied network on the three long runs
+  to $t = 100$, at $n \in \{4, 8, 16, 32\}$ (smoke: $t = 40$, $n = 4$). Each reduction is built
+  on the snapshots with $t \le 50$ only (`latent_comparison_mode` gives `m_train = 101`; smoke:
+  41), and each is advanced by a G-SympNet per seed (42, 43, 44; 2000 epochs; smoke: seed 42,
+  20 epochs) and, except dual PSD, whose subspace is that of PSD without the x-average, by its
+  Galerkin model. `latent_comparison_rows` returns one row per run, $n$, reduction, dynamics and
+  seed, with the errors in sample and in extrapolation, the drifts of the energy, $L^1$, $L^2$
+  and mass, the `pairing_condition` of dual PSD, the `k0_fraction` of the training fluctuations,
+  the offline time and the SympNet losses; it reads a long run from `<d>` only where the file's
+  grid, amplitude and end time match. A dual PSD whose pairing block `dual_psd_reduction` rejects
+  as singular or round-off is a row of status `singular` with the condition number of that
+  block; any other error of the build of dual PSD stops the script. A `DualReduction` gives the
+  `nx`, `nv` and `f0` of its PSD reduction without the x-average as properties, which
+  `latent_run` reads. `write_latent_page` writes `<r>/latent_dynamics.md`, per run the medians
+  over the seeds and the counts of diverged, failed and singular rows, where a failed row is one
+  whose status starts with `failed`: a Galerkin run or a weight-tied training that failed. The
+  checks run in the `core` group, the smoke mode in the `slow` group; the full mode is a script
+  run, outside the suite.
 
 ### Bug Fixes
 
