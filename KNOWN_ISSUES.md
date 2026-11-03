@@ -318,7 +318,7 @@
 
 ### K29 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a finite `k` so large that `k * nx` overflows.
 
-- **location:** `src/dual_psd.jl:142`
+- **location:** `src/dual_psd.jl:144`
 - **evidence:** `latent_pairing` accepts every positive finite `k`, but `h_x = 2π / (k * nx)` is
   zero when `k * nx` overflows, so the pairing is not finite. On 32 × 64 with 10 snapshots of
   the two-stream grid, `dual_psd_reduction(S, f0, 4, k)` throws "ArgumentError: invalid argument
@@ -335,5 +335,17 @@
   "ArgumentError: k = 0 is outside 1:20" for `n = 0` and "ArgumentError: k = 21 is outside 1:20"
   for `n = 42`, as `psd_reduction(S, f0, n)` does. The error is an `ArgumentError`, and no result
   is wrong.
+- **kind:** found late
+- **found:** 2026-11-02
+
+### K31 · `dual_psd_reduction` throws from LAPACK, not from a guard of its own, for a small `k` whose odd–even block is subnormal and passes both guards.
+
+- **location:** `src/dual_psd.jl:153`
+- **evidence:** the odd–even block and its scale are both of order `k²`. On 32 × 64 with the 40
+  snapshots of the two-stream fixture of `test/dual_psd.jl`, `dual_psd_reduction(TS, F0, 4, k)`
+  throws `LAPACKException(1)` from `inv(B)` for `k = 1e-160`, `1e-158`, `1e-156` and `1e-154`:
+  at `k = 1e-158` the block has the norm `1.8e-316`, its condition number is 1, and its inverse
+  overflows. In a sweep of `k = 1e-200, 1e-198, …, 1e-140`, the round-off guard throws for
+  `k ≤ 1e-162` and the call returns for `k ≥ 1e-152`. The benchmark uses `k = 0.5` only.
 - **kind:** found late
 - **found:** 2026-11-02

@@ -124,13 +124,15 @@ odd–even block ``B`` is round-off, and when the 2-norm condition number of ``B
 [`background_derivative`](@ref), ``h_x = 2π/(k n_x)`` and ``h_v = 12/(n_v - 1)``: a ``Φ``
 whose modes all hold ``\\cos(kx)`` and none ``\\sin(kx)`` gives such a block, whose condition
 number can be small. The odd–even block of a PSD basis is antisymmetric, so it is singular for
-every odd `n/2`, and the condition guard throws there.
+every odd `n/2`: the condition guard throws there, and the round-off guard at `n = 2`, where the
+block is zero.
 
 The latent pairing is canonical to round-off relative to the scale of
 ``Π_0 = `` `latent_pairing(r0, k)`: its even–even block is of order ``ε \\|Π_0\\|`` and its
 odd–odd block of order ``ε \\|C\\|^2 \\|Π_0\\|``. An absolute bound such as ``10^{-10} κ`` thus
 holds where ``\\|Π_0\\|`` is of order one, as for ``k = 0.5``, and not for a `k` far from order
-one. For a subnormal `k`, ``h_x`` overflows, and the round-off guard throws with a NaN ratio.
+one. For a subnormal `k`, the block and its scale ``s``, both of order ``k^2``, underflow to
+zero, and the round-off guard throws with a NaN ratio.
 """
 function dual_psd_reduction(S::AbstractArray{<:Any, 3}, f0::AbstractVector, n::Integer,
         k::Real)
