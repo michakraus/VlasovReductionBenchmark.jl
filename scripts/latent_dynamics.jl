@@ -1,11 +1,11 @@
 # The latent dynamics of the reductions: PSD, PSD without the x-average, dual PSD and the
 # weight-tied network, each built on the snapshots with t ≤ 50 of the three long runs to t = 100,
-# at n ∈ {4, 8, 16, 32}. Each has a G-SympNet per seed (42, 43, 44; 2000 epochs) trained on its
-# latent trajectory and rolled out over the whole run, and, except dual PSD, its Galerkin model
-# (one per seed for the network). Each row holds the errors in sample and in extrapolation and
-# the drifts of the energy, L¹, L² and mass. On 64 × 128 (smoke: 32 × 64, the long runs to
-# t = 40, n = 4, seed 42, 20 epochs, 100 training steps of the network). Run from the
-# repository root:
+# at n ∈ {4, 8, 16, 32}. Each has a G-SympNet per seed (42, 43, 44; 2000 epochs) trained on the
+# latent trajectory of the same snapshots and rolled out over the whole run, and, except dual
+# PSD, its Galerkin model (one per seed for the network). Each row holds the errors in sample and
+# in extrapolation and the drifts of the energy, L¹, L² and mass. On 64 × 128 (smoke: 32 × 64,
+# the long runs to t = 40 and the snapshots with t ≤ 20, n = 4, seed 42, 20 epochs, 100 training
+# steps of the network). Run from the repository root:
 #
 #   julia --project scripts/latent_dynamics.jl --runs-dir <d> --results-dir <r> [--smoke]
 #
