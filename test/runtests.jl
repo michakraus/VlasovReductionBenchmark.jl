@@ -18,6 +18,7 @@ if "core" in GROUPS
     @safetestset "Input channels" include("channels.jl")
     @safetestset "Latent dynamics" include("latent_dynamics.jl")
     @safetestset "Dual PSD" include("dual_psd.jl")
+    @safetestset "Latent-dynamics comparison" include("latent_comparison.jl")
 end
 
 if "slow" in GROUPS
@@ -31,4 +32,5 @@ if "slow" in GROUPS
     @safetestset "Reconstruction script, smoke mode" include("integration/reconstruction_script.jl")
     @safetestset "Channel oracles" include("verification/channel_oracles.jl")
     @safetestset "Channels script, smoke mode" include("integration/channels_script.jl")
+    @safetestset "Latent-dynamics script, smoke mode" include("integration/latent_dynamics_script.jl")
 end
