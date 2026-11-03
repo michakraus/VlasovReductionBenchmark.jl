@@ -47,10 +47,13 @@ function cosine_fixture()
 end
 
 # The numbers of a cell of the page, from the `rows` of the CSV file: medians of the rows of
-# status ok, as the sorted middle, and the counts.
+# status ok, as the sorted middle, and the counts of the rows of status diverged, of a status that
+# starts with failed, and of status singular.
 function expected_cell(rows)
     ok = filter(r -> r["status"] == "ok", rows)
     singular = count(r -> r["status"] == "singular", rows)
+    diverged = count(r -> r["status"] == "diverged", rows)
+    failed = count(r -> startswith(r["status"], "failed"), rows)
     function middle(c)
         x = sort([parse(Float64, r[c]) for r in ok])
         m = length(x)
@@ -60,8 +63,7 @@ function expected_cell(rows)
               [@sprintf("%.4g", middle(c))
                for c in ("error_extrapolation", "error_in_sample", "max_energy_drift",
         "max_mass_drift")]
-    return join(medians, " / ") * "; $(length(rows) - length(ok) - singular) diverged, " *
-           "$singular singular"
+    return join(medians, " / ") * "; $diverged diverged, $failed failed, $singular singular"
 end
 
 @testset "The two modes" begin
@@ -291,6 +293,11 @@ end
         line("d1", "4", "dual_psd", "sympnet", "43", "singular", NaN, "Inf"),
         line("d1", "8", "dual_psd", "sympnet", "42", "ok", 0.25, "12.5"),
         line("d1", "8", "dual_psd", "sympnet", "43", "singular", NaN, "3e16"),
+        # a cell with a row of each status that is not ok: the median of 0.25 and 0.75 is 0.5
+        line("d1", "8", "dual_psd", "sympnet", "44", "ok", 0.75, "14"),
+        line("d1", "8", "dual_psd", "sympnet", "45", "diverged", NaN, "15"),
+        line("d1", "8", "dual_psd", "sympnet", "46",
+            "failed: the loss did not fall", NaN, "16"),
         line("d1", "4", "weight_tied", "galerkin", "42", "ok", 0.4),
         line("d2", "4", "psd", "sympnet", "42", "ok", 0.6)]
     mktempdir() do dir
@@ -304,17 +311,21 @@ end
         table(red, dyn) = "| $red | $dyn | $(cell("d1", red, dyn, "4")) | " *
                           "$(cell("d1", red, dyn, "8")) |"
         @test cell("d1", "psd", "sympnet", "4") ==
-              "0.2 / 0.02 / 0.002 / 2e-15; 0 diverged, 0 singular"
+              "0.2 / 0.02 / 0.002 / 2e-15; 0 diverged, 0 failed, 0 singular"
         @test occursin("## d1\n", page) && occursin("## d2\n", page)
         @test occursin("| reduction | dynamics | n = 4 | n = 8 |\n|:--|:--|:--|:--|\n", page)
         for (red, dyn) in (("psd", "sympnet"), ("psd", "galerkin"), ("dual_psd", "sympnet"))
             @test occursin(table(red, dyn), page)
         end
         @test cell("d1", "psd", "sympnet", "8") ==
-              "0.625 / 0.0625 / 0.00625 / 6.25e-15; 1 diverged, 0 singular"
-        @test cell("d1", "psd", "galerkin", "8") == "— / — / — / —; 1 diverged, 0 singular"
+              "0.625 / 0.0625 / 0.00625 / 6.25e-15; 1 diverged, 0 failed, 0 singular"
+        @test cell("d1", "psd", "galerkin", "8") ==
+              "— / — / — / —; 0 diverged, 1 failed, 0 singular"
         @test cell("d1", "dual_psd", "sympnet", "4") ==
-              "singular / singular / singular / singular; 0 diverged, 2 singular"
+              "singular / singular / singular / singular; 0 diverged, 0 failed, 2 singular"
+        @test cell("d1", "dual_psd", "sympnet", "8") ==
+              "0.5 / 0.05 / 0.005 / 5e-15; 1 diverged, 1 failed, 1 singular"
+        @test occursin("- n = 8, seed 46: 16 (failed: the loss did not fall)\n", page)
         # the network has no row at n = 8: its cell is a dash
         w4 = cell("d1", "weight_tied", "galerkin", "4")
         @test occursin("| weight_tied | galerkin | $w4 | — |", page)
@@ -328,5 +339,7 @@ end
         @test occursin("- n = 8, seed 42: 12.5 (ok)\n", page)
         @test occursin("- n = 8, seed 43: 3e+16 (singular)\n", page)
         @test all(s -> occursin(s, page), STATEMENTS)
+        # the paragraph names the three counts of a cell
+        @test all(c -> occursin("of $c rows (", page), ("diverged", "failed", "singular"))
     end
 end

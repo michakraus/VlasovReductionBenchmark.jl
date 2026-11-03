@@ -279,20 +279,21 @@ end
 The cell of the page for the `rows` of one run, reduction, dynamics and `n`: the medians over the
 rows of status `"ok"` of the extrapolation error, the in-sample error, the largest energy drift
 and the largest mass drift, each with the four significant digits of [`format_value`](@ref) and
-separated by ` / `, then the number of rows whose status is neither `"ok"` nor `"singular"`
-(`diverged`) and of rows of status `"singular"`. Where no row is `"ok"`, each median is
-`singular` when every row is singular, and `—` otherwise.
+separated by ` / `, then the number of rows of status `"diverged"`, of rows whose status starts
+with `"failed"` (a Galerkin run or a training that failed) and of rows of status `"singular"`.
+Where no row is `"ok"`, each median is `singular` when every row is singular, and `—` otherwise.
 """
 function latent_cell(rows)
     ok = filter(r -> r["status"] == "ok", rows)
     singular = count(r -> r["status"] == "singular", rows)
-    diverged = length(rows) - length(ok) - singular
+    diverged = count(r -> r["status"] == "diverged", rows)
+    failed = count(r -> startswith(r["status"], "failed"), rows)
     medians = map(("error_extrapolation", "error_in_sample", "max_energy_drift",
         "max_mass_drift")) do c
         isempty(ok) && return singular == length(rows) ? "singular" : "—"
         format_value(median_of([parse(Float64, r[c]) for r in ok]))
     end
-    return "$(join(medians, " / ")); $diverged diverged, $singular singular"
+    return "$(join(medians, " / ")); $diverged diverged, $failed failed, $singular singular"
 end
 
 """
@@ -315,9 +316,9 @@ function write_latent_page(results_dir::AbstractString)
             "gives the median over the seeds of the extrapolation error / the in-sample error ",
             "/ the largest energy drift / the largest mass drift, each relative and the errors ",
             "relative to the fluctuation, then the number of diverged rows (a rollout that ",
-            "diverged, or a Galerkin run or a training that failed) and of singular rows (a ",
-            "dual PSD whose pairing block is singular or round-off). A median is over the rows ",
-            "of status `ok`; it is `singular` where every row is singular.\n")
+            "diverged), of failed rows (a Galerkin run or a training that failed) and of ",
+            "singular rows (a dual PSD whose pairing block is singular or round-off). A median ",
+            "is over the rows of status `ok`; it is `singular` where every row is singular.\n")
         println(io,
             "Dual PSD is canonical only for the Vlasov bracket linearised at the initial ",
             "background, the spatial average of the first snapshot. POD is not a row of the ",

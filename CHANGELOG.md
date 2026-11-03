@@ -228,8 +228,10 @@ so `[Unreleased]` has no target version.
   block; any other error of the build of dual PSD stops the script. A `DualReduction` gives the
   `nx`, `nv` and `f0` of its PSD reduction without the x-average as properties, which
   `latent_run` reads. `write_latent_page` writes `<r>/latent_dynamics.md`, per run the medians
-  over the seeds and the counts of diverged and singular rows. The checks run in the `core`
-  group, the smoke mode in the `slow` group; the full mode is a script run, outside the suite.
+  over the seeds and the counts of diverged, failed and singular rows, where a failed row is one
+  whose status starts with `failed`: a Galerkin run or a weight-tied training that failed. The
+  checks run in the `core` group, the smoke mode in the `slow` group; the full mode is a script
+  run, outside the suite.
 
 ### Bug Fixes
 

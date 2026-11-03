@@ -10,10 +10,13 @@ include("../../scripts/latent_dynamics.jl")
 const DATASETS = ("two_stream_long", "two_stream_beams_long", "nonlinear_landau_long")
 
 # The cell of the page from the `rows` of one run, reduction, dynamics and n: the medians of the
-# rows of status ok, as the sorted middle, and the counts of the other rows.
+# rows of status ok, as the sorted middle, and the counts of the rows of status diverged, of a
+# status that starts with failed, and of status singular.
 function expected_cell(rows)
     ok = filter(r -> r["status"] == "ok", rows)
     singular = count(r -> r["status"] == "singular", rows)
+    diverged = count(r -> r["status"] == "diverged", rows)
+    failed = count(r -> startswith(r["status"], "failed"), rows)
     function middle(c)
         x = sort([parse(Float64, r[c]) for r in ok])
         m = length(x)
@@ -23,8 +26,7 @@ function expected_cell(rows)
               [@sprintf("%.4g", middle(c))
                for c in ("error_extrapolation", "error_in_sample", "max_energy_drift",
         "max_mass_drift")]
-    return join(medians, " / ") * "; $(length(rows) - length(ok) - singular) diverged, " *
-           "$singular singular"
+    return join(medians, " / ") * "; $diverged diverged, $failed failed, $singular singular"
 end
 
 @testset "Script options" begin
@@ -67,7 +69,8 @@ end
                      for d in DATASETS
                      for (red, seed) in (("psd", ""), ("psd_nonzero", ""),
                         ("weight_tied", "42"))]])
-        admitted(s) = s in ("ok", "diverged", "singular") || startswith(s, "failed at step")
+        # a failure is any status that starts with failed: a Galerkin run's or a training's
+        admitted(s) = s in ("ok", "diverged", "singular") || startswith(s, "failed")
         @test all(r -> admitted(r["status"]), rows)
         @test all(r -> isempty(r["pairing_condition"]) == (r["reduction"] != "dual_psd"), rows)
         # one k0_fraction per run
