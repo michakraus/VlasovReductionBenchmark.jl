@@ -27,8 +27,6 @@ VlasovMethods = "4a954452-39e6-424b-ae51-38fc4bbc42ef"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
-# No registered VlasovMethods binds ReducedComplexityModeling 0.5, which its `main` does.
-VlasovMethods = {url = "https://github.com/JuliaPlasma/VlasovMethods.jl", rev = "main"}
 # The `main` of GeometricMachineLearning, which holds the multi-modal and the symmetric
 # particle autoencoders.
 GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "main"}
@@ -47,18 +45,18 @@ GeometricMachineLearning = "0.9"
 GeometricOptimizers = "0.9.2"
 HDF5 = "0.17"
 LinearAlgebra = "1"
-# the floor of VlasovMethods' `main`
+# the floor of VlasovMethods 0.4.0
 PoissonSolvers = "0.6.2"
 Printf = "1"
 QuadGK = "2.11"
 Random = "1"
-# 0.4 is the first that binds ReducedComplexityModeling 0.5, as VlasovMethods' `main` does.
+# 0.4 is the first that binds ReducedComplexityModeling 0.5, as VlasovMethods 0.4 does.
 ReducedBasisMethods = "0.4"
 # `ParameterSpace`, which every `ReducedBasis` holds.
 ReducedComplexityModeling = "0.5"
 Serialization = "1"
 # `status` and `isconverged`, which tell whether the nonlinear solve of a step converged;
-# 0.14.2 is the floor of VlasovMethods' `main`
+# 0.14.2 is the floor of VlasovMethods 0.4.0
 SimpleSolvers = "0.14.2"
 SpecialFunctions = "2"
 TOML = "1"
