@@ -380,3 +380,26 @@
   `k ≤ 1e-162` and the call returns for `k ≥ 1e-152`. The benchmark uses `k = 0.5` only.
 - **kind:** found late
 - **found:** 2026-11-02
+
+### K35 · The "diverged" count of the latent-dynamics page also counts the rows of a failed Galerkin run and of a failed training.
+
+- **location:** `src/latent_comparison.jl:289`
+- **evidence:** `latent_cell` counts as diverged every row whose status is neither `ok` nor
+  `singular`. In a smoke run of `scripts/latent_dynamics.jl`, the row `psd_nonzero | galerkin`
+  of a run reads `— / — / — / —; 1 diverged` for a row of status `failed at step 735`. The plan
+  names "the number of diverged rows"; the paragraph of the page states the wider meaning, and a
+  separate "failed" count would use the words of the CSV statuses.
+- **kind:** found late
+- **found:** 2026-11-03
+
+### K36 · A weight-tied training that fails gives both of its latent-dynamics rows a status outside the set that the smoke scenario admits.
+
+- **location:** `src/latent_comparison.jl:202`
+- **evidence:** `weight_tied_rows` writes the status of `train_weight_tied`, such as "failed: the
+  loss did not fall …", verbatim into its SympNet and its Galerkin row. The smoke scenario admits
+  `ok`, `diverged`, `singular` and a status that starts with `failed at step`, and the plan does
+  not decide this case. `test/latent_comparison.jl:218` reaches the status with
+  `autoencoder_steps = 0`. Where a smoke run reaches it, the row-set check of
+  `test/integration/latent_dynamics_script.jl` fails, so the case is not hidden.
+- **kind:** found late
+- **found:** 2026-11-03

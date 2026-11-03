@@ -225,9 +225,10 @@ so `[Unreleased]` has no target version.
   the offline time and the SympNet losses; it reads a long run from `<d>` only where the file's
   grid, amplitude and end time match. A dual PSD whose pairing block `dual_psd_reduction` rejects
   as singular or round-off is a row of status `singular` with the condition number of that
-  block; any other error of the build of dual PSD stops the script. A `DualReduction` gives the `nx`, `nv` and `f0` of
-  its PSD reduction as properties, which `latent_run` reads. `write_latent_page` writes `<r>/latent_dynamics.md`,
-  per run the medians over the seeds and the counts of diverged and singular rows. The checks
+  block; any other error of the build of dual PSD stops the script. A `DualReduction` gives the
+  `nx`, `nv` and `f0` of its PSD reduction as properties, which `latent_run` reads.
+  `write_latent_page` writes `<r>/latent_dynamics.md`, per run the medians over the seeds and the
+  counts of diverged and singular rows. The checks
   run in the `core` group, the smoke mode in the `slow` group; the full mode is a script run,
   outside the suite.
 
