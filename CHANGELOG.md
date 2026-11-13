@@ -244,6 +244,10 @@ so `[Unreleased]` has no target version.
   `"0.3"`, a fresh `Pkg.instantiate()` failed with an empty intersection. A 0.3 cannot resolve
   at all: the only registered one, 0.3.0, binds ReducedComplexityModeling 0.1, not 0.5.
   VlasovMethods 0.4.0 requires PoissonSolvers 0.6.2, so the floor 0.6 could not be installed.
+- The `[sources]` entry of GeometricMachineLearning names the commit `d9cebdef`, the last 0.9.0
+  commit of its `main`, not the branch. Its `main` is 0.10.0, which requires
+  ReducedComplexityModeling 0.6 and GeometricOptimizers 0.10, while VlasovMethods 0.4 binds
+  ReducedComplexityModeling 0.5. With `rev = "main"`, the environment did not resolve.
 
 ### Tests
 
