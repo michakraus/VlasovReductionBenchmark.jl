@@ -248,8 +248,8 @@ so `[Unreleased]` has no target version.
 ### Tests
 
 - CI runs the tests as the groups `core`, `slow` and `channels`, one job each, listed in
-  `test/ci-groups.toml`. The channel oracles and the smoke mode of `scripts/channels.jl` move
-  from `slow` to the new group `channels`, so that no group job runs much longer than an hour.
+  `test/ci-groups.toml`. The channel oracles and the smoke mode of `scripts/channels.jl` run in
+  their own group `channels`, so that no group job runs much longer than an hour.
   `Pkg.test()` still runs all three groups, and the section *Tests* of the README names the new
   group. `.github/workflows/CI.yml`, `codecov.yml` and the git hooks in `.githooks/` follow the
   Harness template, which runs one CI job per group and checks the group files.
