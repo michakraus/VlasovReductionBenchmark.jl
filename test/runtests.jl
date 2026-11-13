@@ -1,6 +1,6 @@
 using SafeTestsets
 
-const GROUPS = isempty(ARGS) ? ["core", "slow"] : ARGS
+const GROUPS = isempty(ARGS) ? ["core", "slow", "channels"] : ARGS
 
 if "core" in GROUPS
     @safetestset "Aqua" include("quality/aqua.jl")
@@ -30,7 +30,10 @@ if "slow" in GROUPS
     @safetestset "DLRA script, smoke and full mode" include("integration/dlra_script.jl")
     @safetestset "Particle script, smoke mode" include("integration/particles_smoke.jl")
     @safetestset "Reconstruction script, smoke mode" include("integration/reconstruction_script.jl")
+    @safetestset "Latent-dynamics script, smoke mode" include("integration/latent_dynamics_script.jl")
+end
+
+if "channels" in GROUPS
     @safetestset "Channel oracles" include("verification/channel_oracles.jl")
     @safetestset "Channels script, smoke mode" include("integration/channels_script.jl")
-    @safetestset "Latent-dynamics script, smoke mode" include("integration/latent_dynamics_script.jl")
 end

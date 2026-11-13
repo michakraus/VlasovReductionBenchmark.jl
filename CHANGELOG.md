@@ -176,7 +176,7 @@ so `[Unreleased]` has no target version.
   aggregate and the largest per-snapshot relative error, and `<r>/channels.md` tabulates them. A
   snapshot with no fluctuation stops the script with its dataset and index
   (`channel_fluctuations`). The checks without training run in the `core` group, the checks of
-  the rows and the smoke mode in the `slow` group; the full mode is a script run, outside the
+  the rows and the smoke mode in the `channels` group; the full mode is a script run, outside the
   suite.
 - The two-channel network of `scripts/channels.jl` also trains its translations: for each dataset
   and $n$, `<r>/channel_joint.csv` holds a row with `cross = false`, trained on `joint_loss` as
@@ -244,3 +244,12 @@ so `[Unreleased]` has no target version.
   `"0.3"`, a fresh `Pkg.instantiate()` failed with an empty intersection. A 0.3 cannot resolve
   at all: the only registered one, 0.3.0, binds ReducedComplexityModeling 0.1, not 0.5.
   VlasovMethods 0.4.0 requires PoissonSolvers 0.6.2, so the floor 0.6 could not be installed.
+
+### Tests
+
+- CI runs the tests as the groups `core`, `slow` and `channels`, one job each, listed in
+  `test/ci-groups.toml`. The channel oracles and the smoke mode of `scripts/channels.jl` move
+  from `slow` to the new group `channels`, so that no group job runs much longer than an hour.
+  `Pkg.test()` still runs all three groups, and the section *Tests* of the README names the new
+  group. `.github/workflows/CI.yml`, `codecov.yml` and the git hooks in `.githooks/` follow the
+  Harness template, which runs one CI job per group and checks the group files.
