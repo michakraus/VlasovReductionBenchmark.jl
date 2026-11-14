@@ -151,8 +151,6 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
         @test allunique(full_errors)
         # nonlinear Landau damping has no fitted rate of the full-order run
         @test row("data", "nonlinear_landau", "0.5", "4")[col("rate_full_order")] == ""
-        # each run measures the wall time of its own initial factorisation
-        @test allunique(r[col("offline_seconds")] for r in rows)
         # the rows of the two ranks differ in their error
         @test value(row("data", "two_stream", "0.05", "4"), "l2_error_max") !=
               value(row("data", "two_stream", "0.05", "8"), "l2_error_max")

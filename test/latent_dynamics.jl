@@ -182,11 +182,13 @@ end
     x, v = model.distribution.x, model.distribution.v
     series = [invariants(S[:, :, s], model.work, 0.3, x, v, step(x), step(v))
               for s in 1:m]
+    # a drift is relative to the invariant at t = 0, so its rounding error is a few eps
+    # absolute, whatever the size of the drift
     for (name, drift) in ((:energy, :energy_drift), (:l1, :l1_drift), (:l2, :l2_drift),
         (:mass, :mass_drift))
         @test isapprox(
             getfield(run, drift), max_drift([getfield(d, name) for d in series]);
-            rtol = 1e-12)
+            rtol = 1e-12, atol = 8 * eps())
     end
     @test run.energy_drift > 1e-6
 end
