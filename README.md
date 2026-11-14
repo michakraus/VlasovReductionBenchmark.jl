@@ -232,7 +232,7 @@ julia --project -e 'using Pkg; Pkg.test()'
 
 The suite runs the smoke mode of `scripts/full_order.jl` in the `core` group, and its full mode,
 the smoke mode of `scripts/linear_baselines.jl` and the full-basis checks of the Galerkin models in
-the `slow` group; `Pkg.test()` runs both. The `slow` group also runs the smoke mode of
+the `slow` group; `Pkg.test()` runs every group. The `slow` group also runs the smoke mode of
 `scripts/autoencoders.jl` and the checks of the two networks; its full mode is a script run and
 no test. The checks of the DLRA solver run in the `core` group, and the smoke and the full mode of
 `scripts/dlra.jl` in the `slow` group. The `slow` group also runs the smoke mode of
@@ -242,7 +242,7 @@ fixture result files. The `core` group also runs the checks of the reconstructio
 `slow` group the smoke mode of `scripts/reconstruction.jl`; its full mode is the script run of
 *The reconstruction probes* and no test. The checks of the input channels without training run in
 the `core` group, and the checks of their rows and the smoke mode of `scripts/channels.jl` in the
-`slow` group; its full mode is the script run of *The input channels* and no test. The checks of
+`channels` group; its full mode is the script run of *The input channels* and no test. The checks of
 the latent-dynamics comparison run in the `core` group, and the smoke mode of
 `scripts/latent_dynamics.jl` in the `slow` group; its full mode is the script run of *The latent
 dynamics* and no test.

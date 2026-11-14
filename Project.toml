@@ -27,9 +27,10 @@ VlasovMethods = "4a954452-39e6-424b-ae51-38fc4bbc42ef"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
-# The `main` of GeometricMachineLearning, which holds the multi-modal and the symmetric
-# particle autoencoders.
-GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "main"}
+# The last 0.9.0 commit of GeometricMachineLearning's `main`, which holds the multi-modal and the
+# symmetric particle autoencoders. Its `main` is 0.10.0, which requires ReducedComplexityModeling
+# 0.6, and VlasovMethods 0.4 binds 0.5.
+GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "d9cebdef9924b25945189e0f9205b420a92ad6bf"}
 
 [compat]
 # the Jacobian of a decoder
