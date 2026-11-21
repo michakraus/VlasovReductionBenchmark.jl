@@ -52,7 +52,7 @@ Printf = "1"
 QuadGK = "2.11"
 Random = "1"
 # 0.4 is the first that binds ReducedComplexityModeling 0.5, as VlasovMethods 0.4 does.
-ReducedBasisMethods = "0.4"
+ReducedBasisMethods = "0.4, 0.5"
 # `ParameterSpace`, which every `ReducedBasis` holds.
 ReducedComplexityModeling = "0.5"
 Serialization = "1"
