@@ -26,42 +26,37 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 VlasovMethods = "4a954452-39e6-424b-ae51-38fc4bbc42ef"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
-[sources]
-# The last 0.9.0 commit of GeometricMachineLearning's `main`, which holds the multi-modal and the
-# symmetric particle autoencoders. Its `main` is 0.10.0, which requires ReducedComplexityModeling
-# 0.6, and VlasovMethods 0.4 binds 0.5.
-GeometricMachineLearning = {url = "https://github.com/JuliaGNI/GeometricMachineLearning.jl", rev = "d9cebdef9924b25945189e0f9205b420a92ad6bf"}
-
 [compat]
 # the Jacobian of a decoder
 ForwardDiff = "1"
 # the floor of VlasovMethods
 GeometricBase = "0.15.1"
 GeometricEquations = "0.21.5"
-GeometricIntegrators = "0.18.6"
-# the floor of GeometricIntegrators 0.18.6
-GeometricIntegratorsBase = "0.6.9"
-GeometricMachineLearning = "0.9"
-# the floor of GeometricMachineLearning 0.9.0
-GeometricOptimizers = "0.9.2"
+GeometricIntegrators = "0.19"
+# the floor of GeometricIntegrators 0.19
+GeometricIntegratorsBase = "0.7"
+# the multi-modal and the symmetric particle autoencoders; 0.10 is the first that binds
+# ReducedComplexityModeling 0.6, as VlasovMethods 0.5 does.
+GeometricMachineLearning = "0.10"
+# the floor of GeometricMachineLearning 0.10.0
+GeometricOptimizers = "0.10"
 HDF5 = "0.17"
 LinearAlgebra = "1"
-# the floor of VlasovMethods 0.4.0
-PoissonSolvers = "0.6.2"
+PoissonSolvers = "0.7"
 Printf = "1"
 QuadGK = "2.11"
 Random = "1"
-# 0.4 is the first that binds ReducedComplexityModeling 0.5, as VlasovMethods 0.4 does.
-ReducedBasisMethods = "0.4"
+# 0.5 is the first that binds ReducedComplexityModeling 0.6, as VlasovMethods 0.5 does.
+ReducedBasisMethods = "0.5"
 # `ParameterSpace`, which every `ReducedBasis` holds.
-ReducedComplexityModeling = "0.5"
+ReducedComplexityModeling = "0.6"
 Serialization = "1"
 # `status` and `isconverged`, which tell whether the nonlinear solve of a step converged;
-# 0.14.2 is the floor of VlasovMethods 0.4.0
+# 0.14.2 is the floor of VlasovMethods 0.5.0
 SimpleSolvers = "0.14.2"
 SpecialFunctions = "2"
 TOML = "1"
-VlasovMethods = "0.4"
+VlasovMethods = "0.5"
 # 0.7.5 is the first 0.7 that allows ForwardDiff 1
 Zygote = "0.7.5"
 julia = "1.12"

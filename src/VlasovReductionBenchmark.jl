@@ -36,9 +36,9 @@ using GeometricIntegrators: ImplicitMidpoint, RK4
 using GeometricIntegratorsBase: GeometricIntegrator, solutionstep
 using GeometricMachineLearning: GeometricMachineLearning, Batch, BilinearStiefelLayer, CPU,
                                 CharbonnierRelativeLoss, DataLoader, GSympNet,
-                                LowRankStiefelLayer, MultiModalSymplecticAutoencoder,
-                                NeuralNetwork, PSDArch, SymmetricSymplecticAutoencoder,
-                                SymplecticAutoencoder, WeightTiedSymplecticAutoencoder,
+                                LeftInverseSymplecticAutoencoder, LowRankStiefelLayer,
+                                MultiModalSymplecticAutoencoder, NeuralNetwork, PSDArch,
+                                SymmetricSymplecticAutoencoder, SymplecticAutoencoder,
                                 train!
 using GeometricOptimizers: Adam, CompositeMethod, FactoredStiefelAdam, TrainingOptimizer,
                            optimization_step!, solve!

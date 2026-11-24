@@ -62,7 +62,7 @@ end
 The network of [`weight_tied_network`](@ref) on the `nx × nv × m` fluctuation snapshots `G`
 with the modes `(mx, mv)` in place of [`PARITY_MODES`](@ref): the `:grid` frontend
 `BilinearStiefelLayer(nx, nv, mx, mv)` set by its `solve!` on `G`, and the core
-`WeightTiedSymplecticAutoencoder(2n, n; n_ambient_layers = 0)`, ``n = m_x m_v``, whose PSD lift
+`LeftInverseSymplecticAutoencoder(2n, n; n_ambient_layers = 0)`, ``n = m_x m_v``, whose PSD lift
 is set by `PSDArch(2n, n)` `solve!` on the frontend's coordinates of `G`, built with
 `Xoshiro(seed)`.
 
@@ -77,7 +77,7 @@ function channel_network(G::AbstractArray{<:Any, 3}, mx::Integer, mv::Integer;
     grid_frontend = BilinearStiefelLayer(nx, nv, mx, mv)
     frontends = dlra === nothing ? (grid = grid_frontend,) :
                 (grid = grid_frontend, dlra = LowRankStiefelLayer(nx, nv, mx, mv))
-    core = WeightTiedSymplecticAutoencoder(2n, n; n_ambient_layers = 0)
+    core = LeftInverseSymplecticAutoencoder(2n, n; n_ambient_layers = 0)
     nn = NeuralNetwork(MultiModalSymplecticAutoencoder(frontends, core), CPU(), Float64;
         rng = Xoshiro(seed))
     ps = nn.params
