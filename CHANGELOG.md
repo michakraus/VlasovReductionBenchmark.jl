@@ -8,8 +8,9 @@ so `[Unreleased]` has no target version.
 ### New Features
 
 - The project, its tests (Aqua and ExplicitImports in the suite) and the shared git hooks and CI.
-  VlasovMethods 0.4 comes from the General registry; it is the first release that binds
-  ReducedComplexityModeling 0.5.
+  VlasovMethods 0.5 comes from the General registry; it is the first release that binds
+  ReducedComplexityModeling 0.6, and with it GeometricMachineLearning 0.10, GeometricOptimizers
+  0.10, ReducedBasisMethods 0.5, GeometricIntegrators 0.19 and PoissonSolvers 0.7.
 - The three test cases on the grid $x \in [0, 4\pi)$, $v \in [-6, 6]$: linear Landau damping
   (`linear_landau`, $\alpha = 0.01$, $t \le 40$), nonlinear Landau damping (`nonlinear_landau`,
   $\alpha = 0.5$, $t \le 60$) and the two-stream instability (`two_stream`, $\alpha = 0.05$,
@@ -81,8 +82,8 @@ so `[Unreleased]` has no target version.
   `<r>/autoencoders_hamiltonian.toml`. A training whose last loss is not below its first is a
   row with the status `failed: the loss did not fall (<first> → <last>)`, and the script goes on
   and counts it. The test
-  suite runs its smoke mode in the `slow` group. GeometricMachineLearning comes from its `main`
-  through `[sources]`; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.
+  suite runs its smoke mode in the `slow` group. GeometricMachineLearning 0.10 comes from the
+  General registry; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.
 - A DLRA solver (`run_dlra`, `bug_step`): the factored state $f_0 + X S V^{\mathsf T}$ with bases
   orthonormal in the weighted inner products, stepped by the BUG step with augmented bases and a
   truncation back to rank $r$ (the rank-adaptive BUG of Ceruti, Kusch and Lubich at a fixed rank),
@@ -122,7 +123,7 @@ so `[Unreleased]` has no target version.
   count of such runs. `<r>/particle_cost.toml` gives the wall time per PIC step of a `run!` of
   100 steps in a fresh process, with the HDF5 write of each step included. The test suite runs
   the smoke mode of the script in the `slow` group; the full mode is a script run, outside the
-  suite. The training takes GeometricMachineLearning from its `main` through `[sources]`.
+  suite.
 - `<r>/dlra.csv` has the column `max_l2_error_fluct_full_rank`: the largest error of the DLRA run
   of rank $r$ against the full-rank solver of the same discretisation, relative to the
   fluctuation of that solver's run. It measures the error of the rank alone; the error against
@@ -236,18 +237,18 @@ so `[Unreleased]` has no target version.
 ### Bug Fixes
 
 - The `[compat]` floors of SimpleSolvers and Zygote are ones that the resolver can reach:
-  SimpleSolvers 0.14.2, the floor of VlasovMethods 0.4.0, and Zygote 0.7.5, the first 0.7 that
+  SimpleSolvers 0.14.2, the floor of VlasovMethods 0.5.0, and Zygote 0.7.5, the first 0.7 that
   allows ForwardDiff 1. With the floors 0.14.1 and 0.7.0, the Downgrade job failed its
   `forcedeps` check. The upper bounds do not change, and every direct dependency resolves at its
   floor together on Julia 1.12.
-- The `[compat]` entry of VlasovMethods is `"0.4"`, and the floor of PoissonSolvers is 0.6.2. With
-  `"0.3"`, a fresh `Pkg.instantiate()` failed with an empty intersection. A 0.3 cannot resolve
-  at all: the only registered one, 0.3.0, binds ReducedComplexityModeling 0.1, not 0.5.
-  VlasovMethods 0.4.0 requires PoissonSolvers 0.6.2, so the floor 0.6 could not be installed.
-- The `[sources]` entry of GeometricMachineLearning names the commit `d9cebdef`, the last 0.9.0
-  commit of its `main`, not the branch. Its `main` is 0.10.0, which requires
-  ReducedComplexityModeling 0.6 and GeometricOptimizers 0.10, while VlasovMethods 0.4 binds
-  ReducedComplexityModeling 0.5. With `rev = "main"`, the environment did not resolve.
+- The `[compat]` entry of VlasovMethods is `"0.5"`. With `"0.3"`, a fresh `Pkg.instantiate()`
+  failed with an empty intersection. A 0.3 cannot resolve at all: the only registered one, 0.3.0,
+  binds ReducedComplexityModeling 0.1.
+- GeometricMachineLearning has no `[sources]` entry. Its 0.10.0 release holds the multi-modal and
+  the symmetric particle autoencoders and requires ReducedComplexityModeling 0.6 and
+  GeometricOptimizers 0.10, which VlasovMethods 0.5 binds as well. The VlasovMethods 0.4 line
+  binds ReducedComplexityModeling 0.5, so it could reach these autoencoders only through a pin to
+  an unreleased commit of GeometricMachineLearning.
 
 ### Tests
 
