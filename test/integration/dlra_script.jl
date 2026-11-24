@@ -49,7 +49,7 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
         for name in ("linear_landau", "nonlinear_landau", "two_stream")
             @test occursin("full-rank check $name on 32 × 64", printed)
         end
-        @test occursin("rate check full-rank solver linear Landau γ", printed)
+        @test occursin("rate check full-order run linear Landau γ", printed)
         @test occursin("rate check DLRA r = 16 linear Landau γ", printed)
 
         header, rows = read_csv(joinpath(results, "dlra.csv"))
@@ -84,7 +84,7 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
         # the online cost is measured in a fresh process
         cost = TOML.parsefile(joinpath(results, "dlra_cost.toml"))
         @test cost["pid"] != getpid()
-        @test (cost["steps"], cost["warmup"], cost["dt"]) == (100, 10, 0.025)
+        @test (cost["steps"], cost["warmup"], cost["dt"]) == (100, 10, 0.05)
         @test !isempty(cost["uptime"])
         full_seconds = TOML.parsefile(joinpath(results, "full_order_cost.toml"))["seconds_per_step"]
         @test cost["full_order_seconds_per_step"] == full_seconds
@@ -112,7 +112,6 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
             run = read_run(joinpath(runs, file))
             S = run.snapshots
             dlra = run_dlra(run.case, 32, 64, n)
-            full = run_full_rank(run.case, 32, 64)
             r = row(kind, run.case.name, string(run.case.α), string(n))
             errors = relative_l2_errors(dlra.snapshots, S)
             fluct = relative_l2_errors(dlra.snapshots, S, background(S[:, :, 1]))
@@ -128,11 +127,9 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
             # the rate of the full-order run, which differs from the DLRA rate on these rows
             @test value(r, "rate_full_order") ≈
                   fitted_rate(run.case.name, run.times, run.E1, window) rtol=8eps()
-            @test value(r, "full_rank_l2_error_max") ≈
-                  maximum(relative_l2_errors(full.snapshots, S)) rtol=8eps()
-            @test value(r, "max_l2_error_fluct_full_rank") ≈
-                  maximum(relative_l2_errors(dlra.snapshots, full.snapshots,
-                background(full.snapshots[:, :, 1]))) rtol=8eps()
+            # the reference of the two full-rank columns is the full-order run itself
+            @test r[col("full_rank_l2_error_max")] == "0.0"
+            @test r[col("max_l2_error_fluct_full_rank")] == r[col("max_l2_error_fluct")]
             for (name, series) in (("energy_drift", dlra.energy), ("l1_drift", dlra.l1),
                 ("l2_drift", dlra.l2), ("entropy_drift", dlra.entropy),
                 ("mass_drift", dlra.mass))
@@ -143,12 +140,10 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
             @test r[col("rate_status")] == rate_status
             rate === nothing || @test value(r, "rate") ≈ rate rtol=8eps()
         end
-        # the rows of one run share the error of its full-rank solver; the runs differ in it
-        full_errors = [row(k, c, a, "4")[col("full_rank_l2_error_max")]
-                       for (k, c, a) in RUNS]
-        @test all(row(k, c, a, "8")[col("full_rank_l2_error_max")] == e
-        for ((k, c, a), e) in zip(RUNS, full_errors))
-        @test allunique(full_errors)
+        # every row reads its full-rank columns against its own full-order run
+        @test all(r[col("full_rank_l2_error_max")] == "0.0" for r in rows)
+        @test all(r[col("max_l2_error_fluct_full_rank")] == r[col("max_l2_error_fluct")]
+        for r in rows)
         # nonlinear Landau damping has no fitted rate of the full-order run
         @test row("data", "nonlinear_landau", "0.5", "4")[col("rate_full_order")] == ""
         # the rows of the two ranks differ in their error
@@ -171,7 +166,7 @@ const RUNS = (("data", "linear_landau", "0.01"), ("data", "nonlinear_landau", "0
         for r in rows
             @test r[col("status")] == "failed at step 2"
             @test parse(Int, r[col("state_size")]) > 0
-            @test r[col("full_rank_l2_error_max")] != ""
+            @test r[col("full_rank_l2_error_max")] == "0.0"
             for name in ("l2_error_max", "l2_errors", "l2_error_fluct", "max_l2_error_fluct",
                 "rate", "energy_drift", "mass_drift", "max_l2_error_fluct_full_rank",
                 "online_seconds_per_step", "online_ratio")

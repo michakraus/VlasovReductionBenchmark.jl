@@ -57,6 +57,7 @@ using SpecialFunctions: erfcx
 using TOML: TOML
 using VlasovMethods: VlasovMethods, GridDistribution, VlasovPoisson
 using VlasovMethods: ParticleDistribution, SplittingMethod, run!
+using VlasovMethods: AugmentedBUG, LowRankDistribution, lowrank_step!
 using Zygote: Zygote
 
 "The velocity interval ``[v_a, v_b]`` of every grid."
@@ -92,8 +93,7 @@ export check_pod_optimality, checked_projection_errors, decode, encode, full_ord
 export run_linear_baselines
 export AutoencoderReduction, ManifoldGalerkinField, canonical_flow_comparison,
        decoder_jacobian, run_autoencoders, train_untied, train_weight_tied
-export bug_step, dlra_state_size, full_rank_agreement, initial_factors, run_dlra,
-       run_dlra_benchmark, run_full_rank
+export dlra_state_size, full_rank_agreement, run_dlra, run_dlra_benchmark
 export pod_error, pod_modes, run_particles, run_pic, sample_particles, sorted_snapshots,
        train_frontend, write_particle_run
 export write_verdict

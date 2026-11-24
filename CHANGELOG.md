@@ -84,24 +84,24 @@ so `[Unreleased]` has no target version.
   and counts it. The test
   suite runs its smoke mode in the `slow` group. GeometricMachineLearning 0.10 comes from the
   General registry; GeometricOptimizers, ForwardDiff and Zygote are direct dependencies.
-- A DLRA solver (`run_dlra`, `bug_step`): the factored state $f_0 + X S V^{\mathsf T}$ with bases
-  orthonormal in the weighted inner products, stepped by the BUG step with augmented bases and a
-  truncation back to rank $r$ (the rank-adaptive BUG of Ceruti, Kusch and Lubich at a fixed rank),
-  with an RK4 step per substep, the spectral derivative in $x$, centred differences periodic in $v$,
-  and the Poisson solve of the full-order runs, at the time step 0.025. A full-rank solver of the
-  same discretisation (`run_full_rank`) checks it: at full rank in $x$ the two agree to $10^{-10}$
-  over 20 steps, and the full-rank solver and the DLRA run of rank 16 meet the 2 % rate check of
-  linear Landau damping on $64 \times 128$. The fixed-rank BUG of Ceruti and Lubich, without the
-  augmentation, fails both checks.
-- `scripts/dlra.jl --runs-dir <d> --results-dir <r> [--smoke]`: the DLRA solver at
+- DLRA runs (`run_dlra`) on VlasovMethods 0.5: the factored state $X S V^{\mathsf T}$ of
+  VlasovMethods' `LowRankDistribution`, from its factorisation of the initial condition at rank $r$
+  with no fixed modes, stepped by its `AugmentedBUG()` (the rank-adaptive BUG of Ceruti, Kusch and
+  Lubich, truncated back to rank $r$) with an RK4 step per substep, on the Arakawa grid and the
+  Poisson solve of the full-order runs, at their time step 0.05. The full-order runs check it: at
+  full rank in $x$ a DLRA run agrees with the full-order run to $10^{-10}$ over 20 steps
+  (`full_rank_agreement`), and the full-order run and the DLRA run of rank 16 meet the 2 % rate
+  check of linear Landau damping on $64 \times 128$.
+- `scripts/dlra.jl --runs-dir <d> --results-dir <r> [--smoke]`: the DLRA runs at
   $r \in \{4, 8, 16, 32\}$ (smoke: $\{4, 8\}$) on the three data runs and the two test amplitudes
-  of the sweep, after the checks of the solver, one row each in `<r>/dlra.csv` with the metrics of
-  the linear baselines, the drift of the mass, the state size $r(N_x + N_v) + r^2$, the error of
-  the full-rank solver against the full-order run, and the online cost per step, measured in a
-  fresh process, as a ratio to the cost of a full-order step, which is twice as long. A run that
-  blows up is a row with its status. The test suite runs the solver's
-  checks in the `core` group, and the smoke and the full mode of the script in the `slow` group.
-- Random is a direct dependency, for the seeded completion of the initial bases.
+  of the sweep, after the checks of the DLRA runs, one row each in `<r>/dlra.csv` with the metrics
+  of the linear baselines, the drift of the mass, the state size $r(N_x + N_v) + r^2$, and the
+  online cost per step, measured in a fresh process, as a ratio to the cost of a full-order step
+  of the same length. A run that blows up is a row with its status. The test suite runs the
+  checks of the DLRA runs in the `core` group, and the smoke and the full mode of the script in
+  the `slow` group.
+- Random is a direct dependency, for the seeded `Xoshiro` draws of the particles and of the
+  network parameters.
 - `scripts/particles.jl --runs-dir <d> --results-dir <r> [--smoke]`: a PIC run of nonlinear Landau
   damping ($\alpha = 0.5$, $k = 0.5$) with VlasovMethods' `SplittingMethod` on a periodic cubic
   B-spline potential with 32 cells. It draws 4096 particles (smoke: 512) by inverse-CDF sampling
@@ -124,10 +124,11 @@ so `[Unreleased]` has no target version.
   100 steps in a fresh process, with the HDF5 write of each step included. The test suite runs
   the smoke mode of the script in the `slow` group; the full mode is a script run, outside the
   suite.
-- `<r>/dlra.csv` has the column `max_l2_error_fluct_full_rank`: the largest error of the DLRA run
-  of rank $r$ against the full-rank solver of the same discretisation, relative to the
-  fluctuation of that solver's run. It measures the error of the rank alone; the error against
-  the full-order runs also holds the difference of the two discretisations.
+- `<r>/dlra.csv` has the columns `full_rank_l2_error_max` and `max_l2_error_fluct_full_rank`,
+  against the reference of the row, which is the full-order run itself: the first is `0.0`, and
+  the second, the largest error of the DLRA run of rank $r$ relative to the fluctuation, equals
+  `max_l2_error_fluct`. The DLRA runs and the full-order runs share one discretisation, so the
+  error against the full-order run is the error of the rank alone.
 - `scripts/verdict.jl --results-dir <r>... --out <file>`: one Markdown page from the result files
   of the full modes of the other scripts, which names each input file and the commit in the path
   of its directory. For each case (the three data cases and the sweep) and each criterion (the

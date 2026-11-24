@@ -1,14 +1,18 @@
-"The time step of every DLRA run and of its full-rank solver, with a classical RK4 per substep."
-const DLRA_TIMESTEP = 0.025
+"""
+The time step of every DLRA run, with a classical RK4 step per substep: the
+[`TIMESTEP`](@ref) of the full-order runs, so that a run at full rank reproduces the full-order
+run.
+"""
+const DLRA_TIMESTEP = TIMESTEP
 
 "The number of DLRA steps between two stored snapshots, the [`SNAPSHOT_INTERVAL`](@ref) of the
 full-order runs."
 const DLRA_STRIDE = round(Int, SNAPSHOT_INTERVAL / DLRA_TIMESTEP)
 
-"The largest relative difference of a DLRA run at ``r = n_x`` from the full-rank solver."
+"The largest relative difference of a DLRA run at ``r = n_x`` from the full-order run."
 const FULL_RANK_TOLERANCE = 1e-10
 
-"The number of steps over which a DLRA run at ``r = n_x`` is compared with the full-rank solver."
+"The number of steps over which a DLRA run at ``r = n_x`` is compared with the full-order run."
 const AGREEMENT_STEPS = 20
 
 "The rank of the DLRA run whose damping rate of linear Landau damping is checked."
@@ -16,8 +20,10 @@ const CHECK_RANK = 16
 
 """
 The columns of `dlra.csv`, in order. The column `n` holds the rank ``r``. The column
-`max_l2_error_fluct_full_rank` holds the largest error of the run of rank ``r`` against the
-full-rank solver of the same discretisation, relative to the fluctuation of that solver's run.
+`full_rank_l2_error_max` holds the largest relative ``L^2`` error of the reference of the row
+against the full-order run, and `max_l2_error_fluct_full_rank` the largest error of the run of
+rank ``r`` against that reference, relative to its fluctuation. The reference is the full-order
+run itself, so the first is `0.0` and the second equals `max_l2_error_fluct`.
 """
 const DLRA_COLUMNS = ("method", "kind", "case", "alpha", "n", "state_size", "status",
     "l2_error_max", "l2_errors", "max_l2_error_fluct", "l2_error_fluct", "rate", "rate_status",
@@ -58,209 +64,79 @@ function spectral_derivative(nx::Integer, k::Real)
 end
 
 """
-    centred_derivative(nv, hv)
+    dlra_fields(model, Y)
 
-The `nv × nv` matrix of the centred difference ``(g_{j+1} - g_{j-1}) / 2h_v`` with spacing `hv`,
-periodic over the `nv` nodes: node `nv` neighbours node 1, as in VlasovMethods' Arakawa scheme.
+VlasovMethods' workspace `LowRankFields1D1V` of the fields of the low-rank state `Y` of the
+grid model `model` of [`vlasov_model`](@ref): its Green's matrix `model.work`, and the default
+periodic velocity closure, the closure of the full-order runs.
 """
-function centred_derivative(nv::Integer, hv::Real)
-    D = zeros(nv, nv)
-    for j in 1:nv
-        D[j, mod1(j + 1, nv)] += 1 / (2hv)
-        D[j, mod1(j - 1, nv)] -= 1 / (2hv)
-    end
-    return D
-end
+dlra_fields(model, Y) = VlasovMethods.LowRankFields1D1V(Y, model.work)
 
-@doc raw"""
-    dlra_discretisation(case, nx, nv)
-
-The discretisation of `case` on the `nx × nv` grid of [`grid`](@ref) that the DLRA solver and
-its full-rank solver share: the nodes `x`, `v`, the spacings `hx`, `hv`, the Green's matrix `G`
-(``φ = Gρ``) of the FFT Poisson solver of [`vlasov_model`](@ref), the
-[`spectral_derivative`](@ref) `Dx` and the [`centred_derivative`](@ref) `Dv`, the initial
-condition `f_init`, its [`background`](@ref) `f0`, the charge ``ρ_0 = h_v \sum_j f_{0,j}`` of
-`f0` and ``D_v f_0`` as `Dvf0`.
 """
-function dlra_discretisation(case::VlasovCase, nx::Integer, nv::Integer)
+    dlra_step!(Y, field, t)
+
+One DLRA step of the low-rank state `Y` in place, from the time `t`: one step of length
+[`DLRA_TIMESTEP`](@ref) of VlasovMethods' `AugmentedBUG()`, truncated back to the rank of `Y`,
+with one classical RK4 step per substep, on the workspace `field` of [`dlra_fields`](@ref). A
+step that leaves a non-finite core does not throw; `all(isfinite, Y.S)` is its status.
+"""
+dlra_step!(Y, field, t) = lowrank_step!(Y, AugmentedBUG(), field, t, DLRA_TIMESTEP)
+
+"""
+    full_order_stepper(case, nx, nv, steps)
+
+The integrator of [`run_case`](@ref) for `case` on the `nx × nv` grid over `steps` steps of
+[`TIMESTEP`](@ref), as a function of the step number: called with `s = 1, 2, …` in turn, it
+takes step `s` and returns the `nx × nv` state after it. The returned array is the integrator's
+own state, which the next call overwrites.
+"""
+function full_order_stepper(case::VlasovCase, nx::Integer, nv::Integer, steps::Integer)
     model = vlasov_model(case, nx, nv)
-    x, v = model.distribution.x, model.distribution.v
-    hx, hv = step(x), step(v)
-    f_init = initial_condition(case, x, v)
-    f0 = background(f_init)
-    Dv = centred_derivative(nv, hv)
-
-    return (case = case, nx = nx, nv = nv, x = x, v = collect(v), hx = hx, hv = hv,
-        G = model.work, Dx = spectral_derivative(nx, case.k), Dv = Dv, f_init = f_init,
-        f0 = f0, ρ0 = hv * sum(f0), Dvf0 = Dv * f0)
-end
-
-"One classical RK4 step of size `h` of ``\\dot y = g(y)`` from `y`."
-function rk4(g::G, y, h) where {G}
-    k1 = g(y)
-    k2 = g(y .+ h / 2 .* k1)
-    k3 = g(y .+ h / 2 .* k2)
-    k4 = g(y .+ h .* k3)
-    return y .+ h / 6 .* (k1 .+ 2 .* k2 .+ 2 .* k3 .+ k4)
-end
-
-@doc raw"""
-    full_rank_field(d, f)
-
-The right-hand side ``\dot f = -v\, D_x f + (D_x φ) ⊙ (f D_v^{\mathsf T})`` of the `nx × nv` state
-`f` on the [`dlra_discretisation`](@ref) `d`, with ``φ = Gρ`` and ``ρ_i = h_v \sum_j f_{ij}``:
-VlasovMethods' sign convention, charge ``+1``.
-"""
-function full_rank_field(d, f::AbstractMatrix)
-    φx = d.Dx * (d.G * (d.hv .* vec(sum(f; dims = 2))))
-    return -(d.Dx * f) .* d.v' .+ φx .* (f * transpose(d.Dv))
-end
-
-"""
-    full_rank_step(d, f, h)
-
-One RK4 step of size `h` of the full-rank solver of [`full_rank_field`](@ref) from `f`.
-"""
-full_rank_step(d, f::AbstractMatrix, h) = rk4(g -> full_rank_field(d, g), f, h)
-
-"""
-    weighted_orthonormal(A, h)
-
-The `min(size(A)...)` columns ``Q``, orthonormal in the inner product with weight `h`,
-``h Q^{\\mathsf T} Q = I``, of the thin QR factorisation of ``\\sqrt h A``. They span the column
-space of `A`, and more where `A` has fewer independent columns.
-"""
-weighted_orthonormal(A::AbstractMatrix, h::Real) = Matrix(qr(sqrt(h) .* A).Q) ./ sqrt(h)
-
-@doc raw"""
-    initial_factors(d, r)
-
-The factors ``(X, S, V)`` of rank `r` of the initial fluctuation ``f(0) - f_0 = X S V^{\mathsf
-T}`` of the [`dlra_discretisation`](@ref) `d`, with ``h_x X^{\mathsf T} X = I`` and
-``h_v V^{\mathsf T} V = I``: the truncated SVD in the weighted inner product, of the singular
-values above ``\max(n_x, n_v)\, ε\, \|f(0)\|``, the round-off of the subtraction of ``f_0`` (the
-norm is the weighted spectral norm). Where these are fewer than `r`, both bases are completed
-with orthonormal columns drawn from `Xoshiro(42)`.
-"""
-function initial_factors(d, r::Integer)
-    w = sqrt(d.hx * d.hv)
-    D = d.f_init .- d.f0'
-    F = svd(w .* D)
-    q = min(r, count(>(max(d.nx, d.nv) * eps() * opnorm(w .* d.f_init)), F.S))
-    rng = Xoshiro(42)
-    X = complete_basis(F.U[:, 1:q] ./ sqrt(d.hx), r, d.hx, rng)
-    V = complete_basis(F.V[:, 1:q] ./ sqrt(d.hv), r, d.hv, rng)
-
-    return X, d.hx * d.hv .* (X' * D * V), V
-end
-
-"The basis `Q` with weight `h`, completed to `r` columns drawn from `rng`."
-function complete_basis(Q::AbstractMatrix, r::Integer, h::Real, rng)
-    R = randn(rng, size(Q, 1), r - size(Q, 2))
-    R .-= Q * (h .* (Q' * R))
-    return hcat(Q, weighted_orthonormal(R, h))
-end
-
-@doc raw"""
-    electric_field(d, A, c)
-
-The derivative ``D_x φ`` of the potential ``φ = Gρ`` of the state ``f_0 + A B^{\mathsf T}``,
-whose charge is ``ρ = ρ_0 + A c`` with ``c = h_v B^{\mathsf T} \mathbb 1``.
-"""
-electric_field(d, A::AbstractMatrix, c::AbstractVector) = d.Dx * (d.G * (d.ρ0 .+ A * c))
-
-@doc raw"""
-    bug_step(d, X, S, V, h)
-
-One step of size `h` of the augmented BUG integrator, truncated back to the rank `r` of `S`, for
-the state ``f_0 + X S V^{\mathsf T}`` on the [`dlra_discretisation`](@ref) `d`; each substep is
-one RK4 step of the Galerkin projection of the field ``F`` of [`full_rank_field`](@ref).
-
-1. The K-step ``\dot K = h_v F(f_0 + K V^{\mathsf T}) V`` from ``K = XS``, and the L-step
-   ``\dot L = h_x F(f_0 + X L^{\mathsf T})^{\mathsf T} X`` from ``L = V S^{\mathsf T}``.
-2. The augmented bases ``\hat X`` of ``[K, X]`` and ``\hat V`` of ``[L, V]``, of up to ``2r``
-   columns, and the S-step ``\dot S = h_x h_v \hat X^{\mathsf T} F(f_0 + \hat X S \hat
-   V^{\mathsf T}) \hat V`` from ``(h_x \hat X^{\mathsf T} X)\, S\, (h_v V^{\mathsf T} \hat V)``.
-3. The truncation of the new ``S`` to its `r` largest singular values.
-
-The transport term ``-v\, D_x f_0`` vanishes, because ``f_0`` is constant in ``x``. Where the
-S-step leaves a non-finite value, it returns the untruncated ``(\hat X, S, \hat V)``.
-"""
-function bug_step(d, X::AbstractMatrix, S::AbstractMatrix, V::AbstractMatrix, h)
-    r = size(S, 1)
-    hx, hv = d.hx, d.hv
-
-    # the K-step on the fixed basis V
-    Mv = hv .* (V' * (d.v .* V))
-    Md = hv .* ((d.Dv * V)' * V)
-    b = hv .* (V' * d.Dvf0)
-    c = hv .* vec(sum(V; dims = 1))
-    K = rk4(X * S, h) do K
-        -(d.Dx * K) * Mv .+ electric_field(d, K, c) .* (b' .+ K * Md)
+    int = VlasovMethods.GeometricIntegrator(model, (0.0, steps * TIMESTEP), TIMESTEP, RK4())
+    solstep = solutionstep(int.integrator, initialstate(int.equation))
+    return function (s)
+        reset!(solstep, s * TIMESTEP)
+        integrate!(solstep, int.integrator)
+        return reshape(solstep.q, nx, nv)
     end
-
-    # the L-step on the fixed basis X
-    Mx = hx .* ((d.Dx * X)' * X)
-    L = rk4(V * S', h) do L
-        φx = electric_field(d, X, hv .* vec(sum(L; dims = 1)))
-        -(d.v .* L) * Mx .+ d.Dvf0 * (hx .* (φx' * X)) .+
-        (d.Dv * L) * (hx .* (X' * (φx .* X)))
-    end
-
-    # the Galerkin S-step on the augmented bases
-    X̂ = weighted_orthonormal(hcat(K, X), hx)
-    V̂ = weighted_orthonormal(hcat(L, V), hv)
-    Cx = hx .* (X̂' * (d.Dx * X̂))
-    M̂v = hv .* (V̂' * (d.v .* V̂))
-    M̂d = hv .* ((d.Dv * V̂)' * V̂)
-    b̂ = hv .* (V̂' * d.Dvf0)
-    ĉ = hv .* vec(sum(V̂; dims = 1))
-    Ŝ = rk4((hx .* (X̂' * X)) * S * (hv .* (V' * V̂)), h) do S
-        φx = electric_field(d, X̂ * S, ĉ)
-        -Cx * S * M̂v .+ (hx .* (X̂' * φx)) * b̂' .+ (hx .* (X̂' * (φx .* X̂))) * S * M̂d
-    end
-    all(isfinite, Ŝ) || return X̂, Ŝ, V̂
-
-    # the truncation back to rank r
-    F = svd(Ŝ)
-    return X̂ * F.U[:, 1:r], Matrix(Diagonal(F.S[1:r])), V̂ * F.V[:, 1:r]
 end
 
-"The `nx × nv` state ``f_0 + X S V^{\\mathsf T}`` of the factors on `d`."
-factored_state(d, X, S, V) = d.f0' .+ X * S * V'
-
 """
-    full_rank_agreement(case, nx, nv, r, steps)
+    full_rank_agreement(case, nx, nv, r, steps; perturb = nothing)
 
-The largest relative difference ``\\|f_r - f\\|_2 / \\|f\\|_2`` over `steps` steps of
-[`DLRA_TIMESTEP`](@ref) between the DLRA run of rank `r` of `case` on the `nx × nv` grid and the
-full-rank solver, both from the initial condition. It is `NaN` when either run leaves a
-non-finite value.
+The largest relative difference ``\\|f_r - f\\|_2 / \\|f\\|_2`` over `steps` steps between the
+DLRA run of rank `r` of `case` on the `nx × nv` grid, by [`dlra_step!`](@ref), and the
+full-order run of [`full_order_stepper`](@ref), both from the initial condition. It is `NaN`
+when either run leaves a non-finite value. `perturb(step, S)`, where given, is called on the
+core ``S`` of the DLRA run after each step and before this check; it lets a test break a run.
 """
 function full_rank_agreement(case::VlasovCase, nx::Integer, nv::Integer, r::Integer,
-        steps::Integer)
-    d = dlra_discretisation(case, nx, nv)
-    X, S, V = initial_factors(d, r)
-    f = d.f_init
+        steps::Integer; perturb = nothing)
+    model = vlasov_model(case, nx, nv)
+    Y = LowRankDistribution(model.distribution, r)
+    field = dlra_fields(model, Y)
+    reference! = full_order_stepper(case, nx, nv, steps)
     err = 0.0
-    for _ in 1:steps
-        X, S, V = bug_step(d, X, S, V, DLRA_TIMESTEP)
-        f = full_rank_step(d, f, DLRA_TIMESTEP)
-        all(isfinite, S) && all(isfinite, f) || return NaN
-        err = max(err, norm(factored_state(d, X, S, V) .- f) / norm(f))
+    for s in 1:steps
+        dlra_step!(Y, field, (s - 1) * DLRA_TIMESTEP)
+        perturb === nothing || perturb(s, Y.S)
+        f = reference!(s)
+        all(isfinite, Y.S) && all(isfinite, f) || return NaN
+        err = max(err, norm(GridDistribution(Y).values .- f) / norm(f))
     end
     return err
 end
 
 """
-    check_full_rank_agreement(case, nx, nv)
+    check_full_rank_agreement(case, nx, nv; perturb = nothing)
 
 Print the [`full_rank_agreement`](@ref) of `case` at ``r = n_x`` over
-[`AGREEMENT_STEPS`](@ref) steps, and throw an error when it is above
+[`AGREEMENT_STEPS`](@ref) steps, with `perturb`, and throw an error when it is above
 [`FULL_RANK_TOLERANCE`](@ref) or not finite.
 """
-function check_full_rank_agreement(case::VlasovCase, nx::Integer, nv::Integer)
-    err = full_rank_agreement(case, nx, nv, nx, AGREEMENT_STEPS)
+function check_full_rank_agreement(case::VlasovCase, nx::Integer, nv::Integer;
+        perturb = nothing)
+    err = full_rank_agreement(case, nx, nv, nx, AGREEMENT_STEPS; perturb)
     @printf("full-rank check %s on %d × %d: relative difference %.2e\n", case.name, nx, nv,
         err)
     flush(stdout)
@@ -272,40 +148,15 @@ function check_full_rank_agreement(case::VlasovCase, nx::Integer, nv::Integer)
 end
 
 """
-    run_full_rank(case, nx, nv)
-
-The full-rank solver of [`full_rank_field`](@ref) for `case` on the `nx × nv` grid with step
-[`DLRA_TIMESTEP`](@ref) over ``[0, t_\\mathrm{end}]``: the `times` of every step, ``|E_1|`` of
-[`diagnostics`](@ref) at each as `E1`, and the `snapshots` every [`DLRA_STRIDE`](@ref) steps. It
-throws an error when the state holds a non-finite value.
-"""
-function run_full_rank(case::VlasovCase, nx::Integer, nv::Integer)
-    d = dlra_discretisation(case, nx, nv)
-    nsteps = round(Int, case.tend / DLRA_TIMESTEP)
-    times = [s * DLRA_TIMESTEP for s in 0:nsteps]
-    snapshots = zeros(nx, nv, nsteps ÷ DLRA_STRIDE + 1)
-    E1 = zeros(nsteps + 1)
-    f = d.f_init
-    for s in 0:nsteps
-        s > 0 && (f = full_rank_step(d, f, DLRA_TIMESTEP))
-        all(isfinite, f) || error(
-            "the full-rank solver of $(case.name), α = $(case.α) holds a non-finite value " *
-            "after step $s")
-        E1[s + 1] = diagnostics(vec(f), d.G, case.k, d.x, d.v, d.hx, d.hv).E1
-        s % DLRA_STRIDE == 0 && (snapshots[:, :, s ÷ DLRA_STRIDE + 1] .= f)
-    end
-    return (times = times, E1 = E1, snapshots = snapshots)
-end
-
-"""
     run_dlra(case, nx, nv, r; perturb = nothing)
 
-The DLRA run of rank `r` of `case` on the `nx × nv` grid: [`bug_step`](@ref) with step
-[`DLRA_TIMESTEP`](@ref) from [`initial_factors`](@ref) over ``[0, t_\\mathrm{end}]``. It returns
-the `times` of every step, the decoded `snapshots` every [`DLRA_STRIDE`](@ref) steps, the final
-`factors` ``(X, S, V)``, the `offline_seconds` of the initial factorisation, and every step the
-`mass`, `energy`, `E1`, `l1`, `l2`, `entropy` and `nonpositive` count of [`invariants`](@ref)
-of the decoded state.
+The DLRA run of rank `r` of `case` on the `nx × nv` grid: [`dlra_step!`](@ref) with step
+[`DLRA_TIMESTEP`](@ref) over ``[0, t_\\mathrm{end}]``, from VlasovMethods' factorisation
+`LowRankDistribution(dist, r)` of the distribution `dist` of [`vlasov_model`](@ref), with no
+fixed modes. It returns the `times` of every step, the decoded `snapshots` every
+[`DLRA_STRIDE`](@ref) steps, the final low-rank state `factors`, a `LowRankDistribution`, the
+`offline_seconds` of the initial factorisation, and every step the `mass`, `energy`, `E1`, `l1`,
+`l2`, `entropy` and `nonpositive` count of [`invariants`](@ref) of the decoded state.
 
 A step that leaves a non-finite ``S`` ends the run: its `status` is `"failed at step <s>"` and
 `failed_step` is `s`; otherwise the status is `"ok"` and `failed_step` is `nothing`.
@@ -315,9 +166,12 @@ lets a test break a run. It throws an `ArgumentError` unless ``1 ≤ r ≤ \\min
 function run_dlra(case::VlasovCase, nx::Integer, nv::Integer, r::Integer; perturb = nothing)
     1 ≤ r ≤ min(nx, nv) || throw(ArgumentError(
         "the rank $r is not in 1:$(min(nx, nv)) for the $nx × $nv grid"))
-    d = dlra_discretisation(case, nx, nv)
-    timed = @timed initial_factors(d, r)
-    X, S, V = timed.value
+    model = vlasov_model(case, nx, nv)
+    x, v = model.distribution.x, model.distribution.v
+    hx, hv = step(x), step(v)
+    timed = @timed LowRankDistribution(model.distribution, r)
+    Y = timed.value
+    field = dlra_fields(model, Y)
 
     nsteps = round(Int, case.tend / DLRA_TIMESTEP)
     times = [s * DLRA_TIMESTEP for s in 0:nsteps]
@@ -327,15 +181,15 @@ function run_dlra(case::VlasovCase, nx::Integer, nv::Integer, r::Integer; pertur
     status, failed_step = "ok", nothing
     for s in 0:nsteps
         if s > 0
-            X, S, V = bug_step(d, X, S, V, DLRA_TIMESTEP)
-            perturb === nothing || perturb(s, S)
-            if !all(isfinite, S)
+            dlra_step!(Y, field, times[s])
+            perturb === nothing || perturb(s, Y.S)
+            if !all(isfinite, Y.S)
                 status, failed_step = "failed at step $s", s
                 break
             end
         end
-        f = factored_state(d, X, S, V)
-        i = invariants(f, d.G, case.k, d.x, d.v, d.hx, d.hv)
+        f = GridDistribution(Y).values
+        i = invariants(f, model.work, case.k, x, v, hx, hv)
         for name in keys(series)
             push!(series[name], i[name])
         end
@@ -344,7 +198,7 @@ function run_dlra(case::VlasovCase, nx::Integer, nv::Integer, r::Integer; pertur
 
     return (
         status = status, failed_step = failed_step, times = times, snapshots = snapshots,
-        factors = (X, S, V), offline_seconds = timed.time, series...)
+        factors = Y, offline_seconds = timed.time, series...)
 end
 
 """
@@ -352,16 +206,16 @@ end
 
 The checks of the damping rate of linear Landau damping at ``α = 0.01`` on the grid of `mode`,
 a [`dlra_mode`](@ref), fitted by [`landau_rate_fit`](@ref) over its `landau_window` against
-[`landau_root`](@ref) with its `landau_rtol`: first the full-rank solver, so that a failure of
-the DLRA run is the rank's and not the discretisation's, then the DLRA run of rank
-[`CHECK_RANK`](@ref), with `perturb`. Each throws the error of [`check_rate`](@ref), and the
-second an error of its own when the DLRA run stops.
+[`landau_root`](@ref) with its `landau_rtol`: first the full-order run of [`run_case`](@ref),
+so that a failure of the DLRA run is the rank's and not the discretisation's, then the DLRA run
+of rank [`CHECK_RANK`](@ref), with `perturb`. Each throws the error of [`check_rate`](@ref), and
+the second an error of its own when the DLRA run stops.
 """
 function check_dlra_rates(mode; perturb = nothing)
     case, (nx, nv) = linear_landau(), mode.grid
     oracle = imag(landau_root(case.k))
-    full = run_full_rank(case, nx, nv)
-    check_rate("full-rank solver linear Landau γ",
+    full = run_case(case, nx, nv)
+    check_rate("full-order run linear Landau γ",
         landau_rate_fit(full.times, log.(full.E1), mode.landau_window).γ, oracle,
         mode.landau_rtol)
     dlra = run_dlra(case, nx, nv, CHECK_RANK; perturb)
@@ -381,30 +235,31 @@ function dlra_row(; kwargs...)
 end
 
 """
-    dlra_data_row(run, kind, r, full, mode; perturb = nothing)
+    dlra_data_row(run, kind, r, mode; perturb = nothing)
 
 The row of the DLRA run of rank `r` of the full-order `run`, as [`read_run`](@ref) returns it:
 the [`run_dlra`](@ref), with `perturb`, and its [`trajectory_metrics`](@ref) against the run's
 snapshots, around the background of the run's first snapshot, the rate and its status of
 [`reduced_rate`](@ref), the rate of [`fitted_rate`](@ref) of the run, the drift of the mass, the
-[`dlra_state_size`](@ref) and the `kind`, `"data"` or `"sweep"`. `full` holds the snapshots of
-the full-rank solver of [`run_full_rank`](@ref) for the same case: the row holds their largest
-relative ``L^2`` error against the run's snapshots, and the largest error of the DLRA run against
-them, relative to their fluctuation around the background of their first snapshot. A run that
-stops leaves every metric of the trajectory empty.
+[`dlra_state_size`](@ref) and the `kind`, `"data"` or `"sweep"`. The reference of the two
+full-rank columns of [`DLRA_COLUMNS`](@ref) is the run's own snapshots: the row holds their
+largest relative ``L^2`` error against the run's snapshots, `0.0`, and the largest error of the
+DLRA run against them, relative to their fluctuation around the background of their first
+snapshot. A run that stops leaves every metric of the trajectory empty.
 """
-function dlra_data_row(run, kind, r, full, mode; perturb = nothing)
+function dlra_data_row(run, kind, r, mode; perturb = nothing)
     case = run.case
+    reference = run.snapshots
     dlra = run_dlra(case, run.nx, run.nv, r; perturb)
     common = (method = "DLRA", kind = kind, case = case.name, alpha = case.α, n = r,
         state_size = dlra_state_size(r, run.nx, run.nv), status = dlra.status,
-        full_rank_l2_error_max = maximum(relative_l2_errors(full, run.snapshots)),
+        full_rank_l2_error_max = maximum(relative_l2_errors(reference, run.snapshots)),
         offline_seconds = dlra.offline_seconds)
     dlra.status == "ok" || return dlra_row(; common...)
 
     m = trajectory_metrics(dlra.snapshots, run.snapshots, dlra,
         background(run.snapshots[:, :, 1]))
-    own = relative_l2_errors(dlra.snapshots, full, background(full[:, :, 1]))
+    own = relative_l2_errors(dlra.snapshots, reference, background(reference[:, :, 1]))
     rate, rate_status = reduced_rate(case.name, dlra.times, dlra.E1, mode.landau_window)
     rate_full = fitted_rate(case.name, run.times, run.E1, mode.landau_window)
 
@@ -420,28 +275,29 @@ end
 """
     dlra_step_time(case, nx, nv, r; steps = 100, warmup = 10)
 
-The wall time in seconds of one [`bug_step`](@ref) of rank `r` of `case` on the `nx × nv`
-grid, averaged over `steps` steps after `warmup` steps from [`initial_factors`](@ref).
+The wall time in seconds of one [`dlra_step!`](@ref) of rank `r` of `case` on the `nx × nv`
+grid, averaged over `steps` steps after `warmup` steps from the factorisation of
+[`run_dlra`](@ref).
 """
 function dlra_step_time(case::VlasovCase, nx::Integer, nv::Integer, r::Integer;
         steps::Integer = 100, warmup::Integer = 10)
-    d = dlra_discretisation(case, nx, nv)
-    X, S, V = initial_factors(d, r)
-    _, X, S, V = timed_bug_steps(d, X, S, V, warmup)
-    return first(timed_bug_steps(d, X, S, V, steps)) / steps
+    model = vlasov_model(case, nx, nv)
+    Y = LowRankDistribution(model.distribution, r)
+    field = dlra_fields(model, Y)
+    timed_bug_steps(Y, field, warmup)
+    return timed_bug_steps(Y, field, steps) / steps
 end
 
 """
-    timed_bug_steps(d, X, S, V, n)
+    timed_bug_steps(Y, field, n)
 
-The wall time of `n` steps of [`bug_step`](@ref) from ``(X, S, V)``, and the factors after
-them. It is a function barrier: the type of `d` is concrete inside it.
+The wall time of `n` steps of [`dlra_step!`](@ref), which advance the low-rank state `Y` in
+place. It is a function barrier: the types of `Y` and `field` are concrete inside it.
 """
-function timed_bug_steps(d::D, X, S, V, n::Integer) where {D}
-    elapsed = @elapsed for _ in 1:n
-        X, S, V = bug_step(d, X, S, V, DLRA_TIMESTEP)
+function timed_bug_steps(Y, field, n::Integer)
+    return @elapsed for s in 1:n
+        dlra_step!(Y, field, (s - 1) * DLRA_TIMESTEP)
     end
-    return elapsed, X, S, V
 end
 
 """
@@ -520,16 +376,14 @@ the settings of [`dlra_mode`](@ref): the three cases of [`DATA_RUNS`](@ref), eac
 of its run, and linear Landau damping at the [`TEST_AMPLITUDES`](@ref) of the sweep, for each rank
 of the mode.
 
-First it checks the solver: [`check_full_rank_agreement`](@ref) of the three cases on the smoke
-grid ``32 × 64``, and [`check_dlra_rates`](@ref) on the grid of the mode. Then for each run it
-runs the full-rank solver, whose largest relative ``L^2`` error against the run each of its rows
-holds, and writes a [`dlra_data_row`](@ref) of kind `"data"` (the cases) or `"sweep"` (the test
-amplitudes) per rank, which also holds the error of the rank against that solver. The online
-cost of each row that completes comes from [`dlra_costs`](@ref), as a ratio to
-`<results_dir>/full_order_cost.toml`; the ratio is per step, and a DLRA step is half the
-full-order step. It writes `<results_dir>/dlra.csv`, prints the number of rows and of failed
-runs, and returns the rows. `perturb` goes to every [`run_dlra`](@ref) of a row; it lets a test
-break the runs.
+First it checks the DLRA runs: [`check_full_rank_agreement`](@ref) of the three cases on the
+smoke grid ``32 × 64``, and [`check_dlra_rates`](@ref) on the grid of the mode. Then for each run
+it writes a [`dlra_data_row`](@ref) of kind `"data"` (the cases) or `"sweep"` (the test
+amplitudes) per rank, against the run's own snapshots. The online cost of each row that
+completes comes from [`dlra_costs`](@ref), as a ratio to `<results_dir>/full_order_cost.toml`;
+the ratio is per step, and a DLRA step and a full-order step are both [`TIMESTEP`](@ref) long.
+It writes `<results_dir>/dlra.csv`, prints the number of rows and of failed runs, and returns
+the rows. `perturb` goes to every [`run_dlra`](@ref) of a row; it lets a test break the runs.
 
 It throws an error when a check fails, or when the grid of `full_order_cost.toml` or of a run file
 is not the grid of the mode.
@@ -558,9 +412,8 @@ function run_dlra_benchmark(; runs_dir::AbstractString, results_dir::AbstractStr
         (run.nx, run.nv) == mode.grid || error(
             "$file holds a $(run.nx) × $(run.nv) run, not the $(mode.grid[1]) × " *
             "$(mode.grid[2]) grid of this mode")
-        full = run_full_rank(run.case, run.nx, run.nv)
         for r in mode.ranks
-            push!(rows, dlra_data_row(run, kind, r, full.snapshots, mode; perturb))
+            push!(rows, dlra_data_row(run, kind, r, mode; perturb))
             push!(row_files, file)
             @printf("  DLRA, %s, r = %d: %s\n", file, r, rows[end]["status"])
             flush(stdout)

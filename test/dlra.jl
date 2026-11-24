@@ -1,17 +1,21 @@
-using LinearAlgebra: I, norm, svdvals
-using Random: Xoshiro
+using LinearAlgebra: norm
 using VlasovReductionBenchmark
-using VlasovReductionBenchmark: DLRA_STRIDE, DLRA_TIMESTEP, background, centred_derivative,
-                                dlra_discretisation, dlra_mode, factored_state,
-                                relative_l2_errors, spectral_derivative,
-                                weighted_orthonormal
+# VlasovMethods is no test dependency; the benchmark's own import of it is
+using VlasovReductionBenchmark.VlasovMethods: VlasovMethods, AugmentedBUG, GridDistribution,
+                                              LowRankDistribution, lowrank_step!
+using VlasovReductionBenchmark: DLRA_STRIDE, DLRA_TIMESTEP, SNAPSHOT_INTERVAL, TIMESTEP,
+                                background, dlra_mode, full_order_stepper,
+                                relative_l2_errors, spectral_derivative, vlasov_model
 using Test
 
 include("helpers/thrown.jl")
 
 const CASES = (linear_landau(), nonlinear_landau(), two_stream())
 
-@testset "Derivatives" begin
+# The `nx × nv` node values of the low-rank state `Y`.
+node_values(Y) = GridDistribution(Y).values
+
+@testset "Spectral derivative" begin
     # the spectral derivative is exact on each Fourier mode below the Nyquist mode
     nx, k = 32, 0.5
     x = 2π / k .* (0:(nx - 1)) ./ nx
@@ -22,29 +26,13 @@ const CASES = (linear_landau(), nonlinear_landau(), two_stream())
     end
     @test norm(D * cos.(16k .* x)) < 1e-12
     @test norm(D * ones(nx)) < 1e-13
-
-    # the centred difference, periodic over the nodes: (sin θ(j+1) - sin θ(j-1)) / 2h
-    nv, hv = 64, 12 / 63
-    θ = 2π * 3 / nv
-    @test centred_derivative(nv, hv) * sin.(θ .* (1:nv)) ≈
-          sin(θ) / hv .* cos.(θ .* (1:nv)) atol=1e-12
-    Dv = centred_derivative(nv, hv)
-    @test Dv[1, nv] == -1 / (2hv)
-    @test Dv[nv, 1] == 1 / (2hv)
-end
-
-@testset "RK4" begin
-    # one step of ẏ = λy multiplies by the RK4 polynomial of z = λh
-    λ, h = [-0.3 1.1; -1.1 -0.3], 0.2
-    Z = λ * h
-    @test VlasovReductionBenchmark.rk4(y -> λ * y, [1.0, 2.0], h) ≈
-          (I + Z + Z^2 / 2 + Z^3 / 6 + Z^4 / 24) * [1.0, 2.0] rtol=1e-14
 end
 
 @testset "Constants and modes" begin
-    @test DLRA_TIMESTEP == 0.025
-    # snapshots every 0.5, as in the full-order runs
-    @test DLRA_STRIDE * DLRA_TIMESTEP == 0.5
+    # the DLRA runs step as the full-order runs do, and store their snapshots every 0.5
+    @test DLRA_TIMESTEP == TIMESTEP == 0.05
+    @test DLRA_STRIDE == 10
+    @test DLRA_STRIDE * DLRA_TIMESTEP == SNAPSHOT_INTERVAL
     full, smoke = dlra_mode(false), dlra_mode(true)
     @test (full.grid, full.ranks, full.landau_window, full.landau_rtol) ==
           ((64, 128), (4, 8, 16, 32), (0.0, 40.0), 0.02)
@@ -55,108 +43,92 @@ end
     @test dlra_state_size(16, 32, 64) == 1792
 end
 
-@testset "Initial factorisation" begin
-    d = dlra_discretisation(linear_landau(), 32, 64)
-    @test d.f0 ≈ maxwellian.(d.v) rtol=1e-14
-    for r in (1, 4, 8)
-        X, S, V = initial_factors(d, r)
-        @test size(X) == (32, r)
-        @test size(S) == (r, r)
-        @test size(V) == (64, r)
-        @test norm(d.hx .* (X' * X) - I) < 1e-13
-        @test norm(d.hv .* (V' * V) - I) < 1e-13
-        @test norm(factored_state(d, X, S, V) - d.f_init) < 1e-14 * norm(d.f_init)
-        # the fluctuation α cos(kx) g(v) has rank one: one singular value, the others zero
-        σ = svdvals(S)
-        @test σ[1] ≈
-              0.01 * sqrt(d.hx * sum(abs2, cos.(0.5 .* d.x)) *
-                   d.hv * sum(abs2, maxwellian.(d.v))) rtol=1e-12
-        @test all(<(1e-15), σ[2:end])
-    end
-    # the completed columns come from Xoshiro(42): the same on every call, and, in every case,
-    # whose fluctuation has rank one, the weighted orthonormal completion of the first draws of
-    # Xoshiro(42), X's before V's
-    @test initial_factors(d, 8) == initial_factors(d, 8)
-    for case in (linear_landau(0.005), CASES...), (nx, nv) in ((32, 64), (64, 128))
+@testset "A DLRA step is one step of VlasovMethods' augmented BUG" begin
+    # one step of the run against one step of AugmentedBUG() on the factorisation of rank 4
+    # with no fixed modes
+    case = VlasovCase("linear_landau", maxwellian, 0.01, 0.5, 0.05)
+    run = run_dlra(case, 32, 64, 4)
+    @test run.status == "ok"
+    model = vlasov_model(case, 32, 64)
+    Y = LowRankDistribution(model.distribution, 4)
+    @test Y.nfixed == 0
+    f0 = node_values(Y)
+    field = VlasovMethods.LowRankFields1D1V(Y, model.work)
+    lowrank_step!(Y, AugmentedBUG(), field, 0.0, TIMESTEP)
+    @test (run.factors.X, run.factors.S, run.factors.V) == (Y.X, Y.S, Y.V)
+    @test run.factors.nfixed == Y.nfixed == 0
+    @test norm(node_values(run.factors) - f0) > 1e-6 * norm(f0)
+    @test run.snapshots[:, :, 1] ≈ f0 rtol=1e-14
 
-        d = dlra_discretisation(case, nx, nv)
-        X, _, V = initial_factors(d, 4)
-        rng = Xoshiro(42)
-        for (B, h) in ((X, d.hx), (V, d.hv))
-            R = randn(rng, size(B, 1), 3)
-            R .-= B[:, 1:1] * (h .* (B[:, 1:1]' * R))
-            Q = weighted_orthonormal(R, h)
-            @test abs.(h .* (Q' * B[:, 2:4])) ≈ I(3) atol=1e-12
-        end
+    # the timed steps of the online cost are three such steps
+    timed = LowRankDistribution(model.distribution, 4)
+    @test VlasovReductionBenchmark.timed_bug_steps(timed, field, 3) > 0
+    for _ in 1:2
+        lowrank_step!(Y, AugmentedBUG(), field, 0.0, TIMESTEP)
     end
+    @test (timed.X, timed.S, timed.V) == (Y.X, Y.S, Y.V)
 end
 
-@testset "A step keeps the bases orthonormal in the weighted inner product" begin
+@testset "Full rank agrees with the full-order run" begin
     for case in CASES
-        d = dlra_discretisation(case, 32, 64)
-        X, S, V = initial_factors(d, 8)
-        f = factored_state(d, X, S, V)
-        for _ in 1:3
-            X, S, V = bug_step(d, X, S, V, DLRA_TIMESTEP)
+        err = full_rank_agreement(case, 32, 64, 32, 20)
+        @test isfinite(err)
+        @test err ≤ 1e-10
+        # the reference is the integrator of run_case: its state after 10 steps is the second
+        # snapshot of the full-order run, bit for bit
+        step! = full_order_stepper(case, 32, 64, 10)
+        local f
+        for s in 1:10
+            f = step!(s)
         end
-        @test size(S) == (8, 8)
-        @test norm(factored_state(d, X, S, V) - f) > 1e-6 * norm(f)
-        @test norm(d.hx .* (X' * X) - I) < 1e-12
-        @test norm(d.hv .* (V' * V) - I) < 1e-12
+        @test f == run_case(case, 32, 64).snapshots[:, :, 2]
     end
-end
-
-@testset "Check (a): full rank in x agrees with the full-rank solver" begin
-    for case in CASES
-        @test full_rank_agreement(case, 32, 64, 32, 20) ≤ 1e-10
-    end
-    # the step 0.025 is stable on the full grid
     for case in (linear_landau(), two_stream())
         err = full_rank_agreement(case, 64, 128, 64, 40)
         @test isfinite(err)
         @test err ≤ 1e-10
     end
-    # on 128 × 128 it is not (|v| k_max dt = 4.7 > 2√2): over 40 steps the difference is NaN,
-    # the check of 20 steps throws, the full-rank solver throws, and a step returns its
-    # non-finite S untruncated
-    @test isnan(full_rank_agreement(linear_landau(), 128, 128, 128, 40))
+    # a DLRA run made non-finite at step 5: the agreement is NaN, and the check throws
+    perturb = (s, S) -> s == 5 && (S[1] = NaN)
+    @test isnan(full_rank_agreement(linear_landau(), 32, 64, 32, 20; perturb))
     e = thrown(() -> redirect_stdout(devnull) do
-        VlasovReductionBenchmark.check_full_rank_agreement(linear_landau(), 128, 128)
+        VlasovReductionBenchmark.check_full_rank_agreement(linear_landau(), 32, 64; perturb)
     end)
     @test e isa ErrorException
     @test occursin(
-        r"^full-rank check linear_landau on 128 × 128: the DLRA run at r = 128 differs from the full-rank solver by \S+ relative over 20 steps, above 1\.0e-10$",
+        r"^full-rank check linear_landau on 32 × 64: the DLRA run at r = 32 differs from the full-rank solver by NaN relative over 20 steps, above 1\.0e-10$",
         e.msg)
-    short = VlasovCase("linear_landau", maxwellian, 0.01, 0.5, 1.0)
-    e = thrown(() -> run_full_rank(short, 128, 128))
-    @test e isa ErrorException
-    @test occursin(
-        r"^the full-rank solver of linear_landau, α = 0\.01 holds a non-finite value after step \d+$",
-        e.msg)
-    d = dlra_discretisation(linear_landau(), 32, 64)
-    X, S, V = initial_factors(d, 4)
-    X, S, V = bug_step(d, X, fill(NaN, 4, 4), V, DLRA_TIMESTEP)
-    @test size(S) == (8, 8)
-    @test !any(isfinite, S)
+    # the check passes and returns the agreement where nothing breaks the run
+    err = redirect_stdout(devnull) do
+        VlasovReductionBenchmark.check_full_rank_agreement(linear_landau(), 32, 64)
+    end
+    @test err == full_rank_agreement(linear_landau(), 32, 64, 32, 20)
 end
 
-@testset "Checks (b) and (c): the damping rate of linear Landau damping on 64 × 128" begin
+@testset "The damping rate of linear Landau damping" begin
     oracle = imag(landau_root(0.5))
-    full = run_full_rank(linear_landau(), 64, 128)
-    @test length(full.times) == 1601
-    @test size(full.snapshots, 3) == 81
-    γ = landau_rate_fit(full.times, log.(full.E1), (0.0, 40.0)).γ
-    @test abs(γ - oracle) ≤ 0.02 * abs(oracle)
-
     run = run_dlra(linear_landau(), 64, 128, 16)
     @test run.status == "ok"
     γ = landau_rate_fit(run.times, log.(run.E1), (0.0, 40.0)).γ
     @test abs(γ - oracle) ≤ 0.02 * abs(oracle)
 
-    # the checks of the smoke mode pass; a DLRA run that stops fails them
-    @test redirect_stdout(devnull) do
-        VlasovReductionBenchmark.check_dlra_rates(dlra_mode(true))
-    end === nothing
+    # the checks of the smoke mode pass, the full-order run first
+    mktempdir() do dir
+        path = joinpath(dir, "rates.txt")
+        result = open(path, "w") do io
+            redirect_stdout(io) do
+                VlasovReductionBenchmark.check_dlra_rates(dlra_mode(true))
+            end
+        end
+        @test result === nothing
+        printed = read(path, String)
+        first_check = findfirst("rate check full-order run linear Landau γ", printed)
+        second_check = findfirst("rate check DLRA r = 16 linear Landau γ", printed)
+        @test first_check !== nothing
+        @test second_check !== nothing
+        @test first(first_check) < first(second_check)
+    end
+    # a DLRA run that stops fails them
     e = thrown(() -> redirect_stdout(devnull) do
         VlasovReductionBenchmark.check_dlra_rates(dlra_mode(true);
             perturb = (s, S) -> s == 5 && (S[1] = NaN))
@@ -172,29 +144,33 @@ end
     run = run_dlra(case, 32, 64, 4)
     @test run.status == "ok"
     @test run.failed_step === nothing
-    @test run.times ≈ 0:0.025:2.0
-    @test length(run.mass) == length(run.E1) == length(run.nonpositive) == 81
-    # the snapshots every 0.5, the first the initial condition
+    @test run.times == [s * TIMESTEP for s in 0:40]
+    @test run.times ≈ 0:0.05:2.0
+    for series in (run.mass, run.energy, run.E1, run.l1, run.l2, run.entropy,
+        run.nonpositive)
+        @test length(series) == 41
+    end
+    @test eltype(run.E1) == eltype(run.l2) == Float64
+    # the snapshots every 0.5, the first the initial condition, the last the final state
     @test size(run.snapshots) == (32, 64, 5)
-    d = dlra_discretisation(case, 32, 64)
-    @test run.snapshots[:, :, 1] ≈ d.f_init rtol=1e-14
-    @test run.snapshots[:, :, end] ≈ factored_state(d, run.factors...) rtol=1e-14
+    @test eltype(run.snapshots) == Float64
+    f_init = initial_condition(case, grid(case, 32, 64)...)
+    @test run.snapshots[:, :, 1] ≈ f_init rtol=1e-14
+    @test run.snapshots[:, :, end] ≈ node_values(run.factors) rtol=1e-14
+    @test eltype(run.factors.S) == Float64
+    @test size(run.factors.S) == (4, 4)
+    @test run.factors.nfixed == 0
     @test run.offline_seconds > 0
     # the second snapshot is the state at t = 0.5, the last of a run to t = 0.5
     half = VlasovCase("linear_landau", maxwellian, 0.01, 0.5, 0.5)
     @test run.snapshots[:, :, 2] == run_dlra(half, 32, 64, 4).snapshots[:, :, 2]
     @test run.snapshots[:, :, 2] != run.snapshots[:, :, 1]
-    full = run_full_rank(case, 32, 64)
-    @test full.snapshots[:, :, 1] == d.f_init
-    @test full.snapshots[:, :, 2] == run_full_rank(half, 32, 64).snapshots[:, :, 2]
-    @test full.snapshots[:, :, 2] != full.snapshots[:, :, 1]
-    @test length(full.E1) == 81
 
     # a non-finite S ends the run with its step
     broken = run_dlra(case, 32, 64, 4; perturb = (s, S) -> s == 3 && (S[1] = NaN))
     @test broken.status == "failed at step 3"
     @test broken.failed_step == 3
-    @test length(broken.E1) == 3
+    @test length(broken.E1) == length(broken.mass) == 3
 
     # the rank is at least one and at most the smaller grid dimension
     for r in (0, 33)
@@ -204,38 +180,30 @@ end
     end
 end
 
-@testset "A DLRA row against the full-rank solver" begin
+@testset "A DLRA row against the full-order run" begin
     # a short nonlinear Landau run, which has no fitted rate, so no fit window matters
     case = VlasovCase("nonlinear_landau", maxwellian, 0.5, 0.5, 5.5)
     run = run_case(case, 32, 64)
-    full = run_full_rank(case, 32, 64)
-    row = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, full.snapshots,
-        dlra_mode(true))
+    row = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, dlra_mode(true))
     dlra = run_dlra(case, 32, 64, 4)
     value(name) = parse(Float64, row[name])
 
-    # the rank-r error against the full-rank solver, relative to the fluctuation of that
-    # solver's run; its maximum is neither at the first snapshot, where both are the initial
-    # state, nor at the last
-    own = relative_l2_errors(dlra.snapshots, full.snapshots,
-        background(full.snapshots[:, :, 1]))
-    @test 1 < argmax(own) < length(own)
-    @test value("max_l2_error_fluct_full_rank") ≈ maximum(own) rtol=8eps()
-    # it differs from the error against the run of the grid scheme, and from the error
-    # relative to f
+    # the error of the rank against the full-order run, relative to its fluctuation
     against_run = relative_l2_errors(dlra.snapshots, run.snapshots,
         background(run.snapshots[:, :, 1]))
     @test value("max_l2_error_fluct") ≈ maximum(against_run) rtol=8eps()
-    @test abs(maximum(own) - maximum(against_run)) > 0.01 * maximum(own)
-    @test maximum(relative_l2_errors(dlra.snapshots, full.snapshots)) < 0.5 * maximum(own)
-    # the error of the full-rank solver against the run of the grid scheme
-    @test value("full_rank_l2_error_max") ≈
-          maximum(relative_l2_errors(full.snapshots, run.snapshots)) rtol=8eps()
+    @test value("l2_error_max") ≈
+          maximum(relative_l2_errors(dlra.snapshots, run.snapshots)) rtol=8eps()
+    # the reference of the two full-rank columns is the full-order run itself
+    @test row["full_rank_l2_error_max"] == "0.0"
+    @test row["max_l2_error_fluct_full_rank"] == row["max_l2_error_fluct"]
+    @test value("max_l2_error_fluct") > 0
 
-    # a run that stops leaves the column empty
-    broken = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, full.snapshots,
-        dlra_mode(true); perturb = (s, S) -> s == 2 && (S[1] = NaN))
+    # a run that stops leaves the column of the DLRA error empty
+    broken = VlasovReductionBenchmark.dlra_data_row(run, "data", 4, dlra_mode(true);
+        perturb = (s, S) -> s == 2 && (S[1] = NaN))
     @test broken["status"] == "failed at step 2"
+    @test broken["full_rank_l2_error_max"] == "0.0"
     @test broken["max_l2_error_fluct_full_rank"] == ""
-    @test broken["full_rank_l2_error_max"] != ""
+    @test broken["max_l2_error_fluct"] == ""
 end
