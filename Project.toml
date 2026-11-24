@@ -35,7 +35,8 @@ GeometricEquations = "0.21.5"
 GeometricIntegrators = "0.19"
 # the floor of GeometricIntegrators 0.19
 GeometricIntegratorsBase = "0.7"
-# the multi-modal and the symmetric particle autoencoders; 0.10 is the line of VlasovMethods 0.5
+# the multi-modal and the symmetric particle autoencoders; 0.10 is the first that binds
+# ReducedComplexityModeling 0.6, as VlasovMethods 0.5 does.
 GeometricMachineLearning = "0.10"
 # the floor of GeometricMachineLearning 0.10.0
 GeometricOptimizers = "0.10"

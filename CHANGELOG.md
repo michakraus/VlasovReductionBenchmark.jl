@@ -9,8 +9,8 @@ so `[Unreleased]` has no target version.
 
 - The project, its tests (Aqua and ExplicitImports in the suite) and the shared git hooks and CI.
   VlasovMethods 0.5 comes from the General registry; it is the first release that binds
-  ReducedComplexityModeling 0.6, and with it GeometricMachineLearning 0.10, GeometricOptimizers
-  0.10, ReducedBasisMethods 0.5, GeometricIntegrators 0.19 and PoissonSolvers 0.7.
+  ReducedComplexityModeling 0.6 and ReducedBasisMethods 0.5, and it admits GeometricIntegrators
+  0.19 and PoissonSolvers 0.7.
 - The three test cases on the grid $x \in [0, 4\pi)$, $v \in [-6, 6]$: linear Landau damping
   (`linear_landau`, $\alpha = 0.01$, $t \le 40$), nonlinear Landau damping (`nonlinear_landau`,
   $\alpha = 0.5$, $t \le 60$) and the two-stream instability (`two_stream`, $\alpha = 0.05$,
@@ -58,7 +58,7 @@ so `[Unreleased]` has no target version.
   untied `SymplecticAutoencoder(128, n)` on the 128 leading coordinates of the PSD basis, and a
   `MultiModalSymplecticAutoencoder` with one grid modality, `BilinearStiefelLayer(nx, nv, m_x,
   m_v)` with $m_x m_v = n$ and the weight-tied core
-  `WeightTiedSymplecticAutoencoder(2n, n; n_ambient_layers = 0)`, started from the layer's
+  `LeftInverseSymplecticAutoencoder(2n, n; n_ambient_layers = 0)`, started from the layer's
   `solve!` and from `PSDArch(2n, n)` `solve!` for the core's lift. Both map a grid state to $z$
   and back through `encode` and `decode` (`AutoencoderReduction`), so the metrics of the linear
   baselines apply unchanged. Each trains with `CompositeMethod(; manifold =
@@ -244,11 +244,9 @@ so `[Unreleased]` has no target version.
 - The `[compat]` entry of VlasovMethods is `"0.5"`. With `"0.3"`, a fresh `Pkg.instantiate()`
   failed with an empty intersection. A 0.3 cannot resolve at all: the only registered one, 0.3.0,
   binds ReducedComplexityModeling 0.1.
-- GeometricMachineLearning has no `[sources]` entry. Its 0.10.0 release holds the multi-modal and
-  the symmetric particle autoencoders and requires ReducedComplexityModeling 0.6 and
-  GeometricOptimizers 0.10, which VlasovMethods 0.5 binds as well. The VlasovMethods 0.4 line
-  binds ReducedComplexityModeling 0.5, so it could reach these autoencoders only through a pin to
-  an unreleased commit of GeometricMachineLearning.
+- GeometricMachineLearning comes from the General registry, with no `[sources]` entry. Its bound
+  is `"0.10"`, the first line that binds ReducedComplexityModeling 0.6, as VlasovMethods 0.5 does;
+  0.10 requires GeometricOptimizers 0.10, which is the floor of GeometricOptimizers.
 
 ### Tests
 

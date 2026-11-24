@@ -185,7 +185,7 @@ end
 
 The multi-modal network of one `:grid` modality on the `nx × nv × m` fluctuation snapshots `G`
 at latent dimension `n`: `BilinearStiefelLayer(nx, nv, m_x, m_v)` with the modes of
-[`PARITY_MODES`](@ref) and the core `WeightTiedSymplecticAutoencoder(2n, n;
+[`PARITY_MODES`](@ref) and the core `LeftInverseSymplecticAutoencoder(2n, n;
 n_ambient_layers = 0)`, built with `Xoshiro(seed)`. The layer's bases are set by its `solve!`
 on `G`, and the core's last layer, the PSD lift, by `PSDArch(2n, n)` `solve!` on the layer's
 coordinates of `G`.
@@ -194,7 +194,7 @@ function weight_tied_network(G::AbstractArray{<:Any, 3}, n::Integer; seed::Integ
     nx, nv, _ = size(G)
     mx, mv = PARITY_MODES[n]
     frontend = BilinearStiefelLayer(nx, nv, mx, mv)
-    core = WeightTiedSymplecticAutoencoder(2n, n; n_ambient_layers = 0)
+    core = LeftInverseSymplecticAutoencoder(2n, n; n_ambient_layers = 0)
     nn = NeuralNetwork(MultiModalSymplecticAutoencoder((grid = frontend,), core), CPU(),
         Float64; rng = Xoshiro(seed))
     ps = nn.params
