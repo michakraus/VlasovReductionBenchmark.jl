@@ -130,6 +130,20 @@ so `[Unreleased]` has no target version.
   the second, the largest error of the DLRA run of rank $r$ relative to the fluctuation, equals
   `max_l2_error_fluct`. The DLRA runs and the full-order runs share one discretisation, so the
   error against the full-order run is the error of the rank alone.
+- Every value of `<r>/dlra.csv` and `<r>/dlra_cost.toml` changes against the verdict's DLRA
+  inputs, `results/verdict-9e104ec/dlra.csv`, which the benchmark's own augmented BUG wrote on
+  $64 \times 128$. The solver is VlasovMethods' `AugmentedBUG()`; the discretisation is the
+  Arakawa grid of the full-order runs, in place of the spectral derivative in $x$ and centred
+  differences in $v$; the step is 0.05, in place of 0.025; and the reference is the full-order
+  run, in place of the full-rank run of the old discretisation, so `full_rank_l2_error_max`
+  becomes `0.0` and `max_l2_error_fluct_full_rank` equals `max_l2_error_fluct`. At $r = 16$ the
+  verdict's DLRA error, `max_l2_error_fluct_full_rank`, goes from $2.131 \times 10^{-4}$ to
+  $1.177 \times 10^{-3}$ in linear Landau damping, from 0.2469 to 0.2175 in nonlinear Landau
+  damping, from 0.6182 to 0.5877 in the two-stream instability, and in the sweep from
+  $2.144 \times 10^{-4}$ to $1.277 \times 10^{-3}$ at $\alpha = 0.015$ and from
+  $2.178 \times 10^{-4}$ to $1.263 \times 10^{-3}$ at $\alpha = 0.03$; the rate of linear Landau
+  damping at $r = 16$ goes from −0.1544 to −0.1551. All 20 rows of the new run have the status
+  `ok`. The verdict page regenerated with the new `dlra.csv`: the answer stays No.
 - `scripts/verdict.jl --results-dir <r>... --out <file>`: one Markdown page from the result files
   of the full modes of the other scripts, which names each input file and the commit in the path
   of its directory. For each case (the three data cases and the sweep) and each criterion (the
