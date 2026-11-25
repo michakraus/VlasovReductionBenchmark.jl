@@ -82,29 +82,30 @@ non-finite, is a row with a `failed` status, and the script goes on.
 julia --project scripts/dlra.jl --runs-dir runs --results-dir results
 ```
 
-A dynamical low-rank solver integrates the factored state $f = f_0 + X S V^{\mathsf T}$ of rank
-$r \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on the smoke runs), with $X$ and $V$
-orthonormal in the inner products weighted by $h_x$ and $h_v$. Each step is the BUG step with
-augmented bases (K-step, L-step, then the Galerkin S-step on the bases of up to $2r$ columns),
-truncated back to rank $r$; each substep is one RK4 step. The discretisation is spectral in $x$
-and centred differences in $v$, periodic in $v$, with the same Poisson solve as the full-order
-runs. The time step is 0.025, half the full-order step, because RK4 with the spectral derivative
-is unstable at 0.05 on $64 \times 128$. The solver does not conserve the mass exactly; the drift
-is written, not asserted.
+A dynamical low-rank (DLRA) run integrates the factored state $f = X S V^{\mathsf T}$ of
+VlasovMethods' `LowRankDistribution` of rank $r \in \{4, 8, 16, 32\}$ (`--smoke`: $\{4, 8\}$, on
+the smoke runs), from the weighted truncated SVD of the initial condition at rank $r$ with no
+fixed modes, with $X$ and $V$ orthonormal in the inner products weighted by $h_x$ and $h_v$. Each
+step is a step of VlasovMethods' `AugmentedBUG()`, the BUG step with augmented bases (K-step,
+L-step, then the Galerkin S-step on the bases of up to $2r$ columns), truncated back to rank $r$;
+each substep is one RK4 step. The discretisation is the Arakawa grid of the full-order runs,
+periodic in $v$, with their Poisson solve, and the time step is 0.05, the full-order step. The
+drift of the mass is written, not asserted.
 
-Before it measures, the script checks the solver. At full rank in $x$ it agrees with a full-rank
-solver of the same discretisation to $10^{-10}$ over 20 steps on $32 \times 64$, and the
-full-rank solver and the run of rank 16 meet the rate check of linear Landau damping (2 % over
-$[0, 40]$ on $64 \times 128$; `--smoke`: 10 % over $[0, 25]$ on $32 \times 64$). It writes one row
-per case and rank, and per test amplitude of the sweep and rank, to `results/dlra.csv`, with the
-metrics of the linear baselines against the full-order runs, the state size
-$r(N_x + N_v) + r^2$, the error of the full-rank solver against the same full-order run (the
-difference of the two discretisations), the error of the run of rank $r$ against the full-rank
-solver relative to its fluctuation (`max_l2_error_fluct_full_rank`, the error of the rank
-alone), and the online cost per DLRA step, measured in a fresh
-process, to `results/dlra_cost.toml`. The column `online_ratio` is per step: the cost of one DLRA
-step of 0.025 over the cost of one full-order step of 0.05, so the cost per unit of simulated time
-is twice the ratio. The column `n` holds the rank $r$.
+Before it measures, the script checks the DLRA runs against the full-order runs. At full rank in
+$x$ a DLRA run agrees with the full-order run to $10^{-10}$ over 20 steps on $32 \times 64$, and
+the full-order run and the DLRA run of rank 16 meet the rate check of linear Landau damping (2 %
+over $[0, 40]$ on $64 \times 128$; `--smoke`: 10 % over $[0, 25]$ on $32 \times 64$). It writes
+one row per case and rank, and per test amplitude of the sweep and rank, to `results/dlra.csv`,
+with the metrics of the linear baselines against the full-order runs, the state size
+$r(N_x + N_v) + r^2$, and two columns against the reference of the row, which is the full-order
+run itself: the error of the reference against the full-order run (`full_rank_l2_error_max`,
+`0.0`), and the error of the run of rank $r$ against the reference relative to its fluctuation
+(`max_l2_error_fluct_full_rank`, the error of the rank alone, equal to `max_l2_error_fluct`). It
+writes the online cost per DLRA step, measured in a fresh process, to `results/dlra_cost.toml`.
+The column `online_ratio` is per step: the cost of one DLRA step over the cost of one full-order
+step, both of 0.05, so it is also the ratio per unit of simulated time. The column `n` holds the
+rank $r$.
 
 ## The particle half
 
@@ -134,10 +135,11 @@ The script reads the result files of the full modes of the other scripts from th
 directories `<r>`, whose paths each name the commit that wrote them, as in
 `VlasovReductionBenchmark-I2-760c7a5/results`, and writes one Markdown page. For each case and
 criterion it sets POD, PSD, DLRA and the two autoencoders side by side at each $n$: the
-autoencoders by the median over the seeds, with the range; DLRA by its error against its own
-full-rank solver; the online cost per unit of simulated time. An autoencoder beats the best
-baseline on a criterion when it is strictly better at three of the four $n$. A row whose status
-is not `ok` enters no median and is listed. The last line of the page answers whether the
+autoencoders by the median over the seeds, with the range; DLRA by
+`max_l2_error_fluct_full_rank`, its error against the full-rank run of its own discretisation,
+which is the full-order run; the online cost per unit of simulated time. An autoencoder beats the
+best baseline on a criterion when it is strictly better at three of the four $n$. A row whose
+status is not `ok` enters no median and is listed. The last line of the page answers whether the
 Vlasov half of the plan goes on. A missing input file stops the script with its name.
 
 ## The reconstruction probes

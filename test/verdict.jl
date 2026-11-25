@@ -599,7 +599,8 @@ end
         @test occursin(
             "159.5 times the norm of VlasovMethods' Arakawa field on the 64 × 128 grid",
             page)
-        @test occursin("DLRA's error is read against its own full-rank solver", page)
+        @test occursin(
+            "that run is the full-order run and the column equals `max_l2_error_fluct`", page)
         @test occursin("include the dual-number allocations of the Newton solve", page)
         @test occursin("`dlra_cost.toml` 0.025", page)
         # the particle half: `:pairwise` is not below the sorted POD at any n

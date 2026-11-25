@@ -135,8 +135,9 @@ so `[Unreleased]` has no target version.
   of its directory. For each case (the three data cases and the sweep) and each criterion (the
   error relative to the fluctuation, the rate, the drifts of the energy and of the $L^1$, $L^2$
   and entropy Casimirs, the out-of-sample error and the online cost per unit of simulated time)
-  it gives, at each $n$, POD, PSD, DLRA (against its own full-rank solver) and the median and
-  range over the seeds of each autoencoder, the best baseline, and whether each autoencoder is
+  it gives, at each $n$, POD, PSD, DLRA (by `max_l2_error_fluct_full_rank`, its error against the
+  full-rank run of its own discretisation, which is the full-order run) and the median and range
+  over the seeds of each autoencoder, the best baseline, and whether each autoencoder is
   better; an autoencoder beats the best baseline when it is better at three of the four $n$. A
   row whose status is not `ok` enters no median and is listed. The page also gives the particle
   half, the findings of the runs, and as its last line whether part G of the plan goes on: yes
