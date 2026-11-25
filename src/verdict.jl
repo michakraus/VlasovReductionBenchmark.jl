@@ -172,9 +172,10 @@ end
 """
     error_column(method)
 
-The column of the error criterion of `method`: for DLRA its error against its own full-rank
-solver, relative to the fluctuation of that solver's run; for every other method its error
-against the full-order run, relative to the fluctuation.
+The column of the error criterion of `method`: for DLRA its error against the full-rank run of
+its own discretisation, relative to the fluctuation of that run; that run is the full-order run
+and the column equals `max_l2_error_fluct`. For every other method it is the error against the
+full-order run, relative to the fluctuation.
 """
 function error_column(method::AbstractString)
     method == "DLRA" ? "max_l2_error_fluct_full_rank" : "max_l2_error_fluct"
@@ -646,11 +647,12 @@ function write_verdict(; results_dirs, out::AbstractString)
             "(POD, PSD or DLRA) on a criterion when it is better at $BEAT_COUNT of the ",
             "$(length(VERDICT_DIMS)) n; the factor of a win is the smallest ratio of the best ",
             "baseline's value to the method's over the n at which it is better.")
-        println(io, "- DLRA's error is read against its own full-rank solver (the column ",
-            "`max_l2_error_fluct_full_rank`, relative to the fluctuation of that solver's run), ",
-            "because its error against the full-order runs measures the difference of the two ",
-            "discretisations. Its reference differs from the other methods'. Its rate is the fit ",
-            "to its own run, and its full-rank solver passes the rate check of the DLRA script.")
+        println(
+            io, "- DLRA's error is the column `max_l2_error_fluct_full_rank`: its error ",
+            "against the full-rank run of its own discretisation, relative to the fluctuation ",
+            "of that run; that run is the full-order run and the column equals ",
+            "`max_l2_error_fluct`. Its rate is the fit to its own run, and the full-order run ",
+            "and the DLRA run of rank $CHECK_RANK pass the rate check of the DLRA script.")
         println(
             io, "- The rate criterion is the deviation of a method's fitted rate from the ",
             "fitted rate of the full-order run, relative to the latter; an empty rate counts as ",
