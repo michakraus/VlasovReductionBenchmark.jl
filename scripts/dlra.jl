@@ -1,16 +1,15 @@
-# The DLRA solver at the ranks r ∈ {4, 8, 16, 32} (smoke: {4, 8}) on the full-order runs of
-# scripts/full_order.jl. Run from the repository root, after scripts/full_order.jl with the same
-# directories:
+# The DLRA runs, VlasovMethods' augmented BUG at the full-order time step, at the ranks
+# r ∈ {4, 8, 16, 32} (smoke: {4, 8}) on the full-order runs of scripts/full_order.jl. Run from the
+# repository root, after scripts/full_order.jl with the same directories:
 #
 #   julia --project scripts/dlra.jl --runs-dir <d> --results-dir <r> [--smoke]
 #
-# It first checks the solver: at full rank in x it agrees with its full-rank solver, and the
-# full-rank solver and the run of rank 16 meet the rate check of linear Landau damping; a check
+# It first checks the DLRA runs: at full rank in x a run agrees with the full-order run, and the
+# full-order run and the run of rank 16 meet the rate check of linear Landau damping; a check
 # that fails stops the script. It then reads the run files from <d> and <r>/full_order_cost.toml,
 # and writes one row per case and rank, and per test amplitude of the sweep and rank, to
-# <r>/dlra.csv, with the errors against the run and against the full-rank solver, and the online
-# cost per step, measured in a fresh process, in <r>/dlra_cost.toml. A DLRA run that blows up is
-# a row with its status.
+# <r>/dlra.csv, with the errors against the run, and the online cost per step, measured in a
+# fresh process, in <r>/dlra_cost.toml. A DLRA run that blows up is a row with its status.
 
 using VlasovReductionBenchmark: run_dlra_benchmark
 
