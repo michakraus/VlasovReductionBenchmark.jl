@@ -88,6 +88,23 @@ end
         @test isfinite(err)
         @test err ≤ 1e-10
     end
+    # below full rank, the agreement is the largest of the per-step differences, which the test
+    # takes from AugmentedBUG() stepped beside the reference; on linear Landau damping at r = 4
+    # the difference falls over the first five steps, so the largest of them is not the last
+    case = linear_landau()
+    model = vlasov_model(case, 32, 64)
+    Y = LowRankDistribution(model.distribution, 4)
+    field = VlasovMethods.LowRankFields1D1V(Y, model.work)
+    reference! = full_order_stepper(case, 32, 64, 20)
+    differences = map(1:20) do s
+        lowrank_step!(Y, AugmentedBUG(), field, (s - 1) * TIMESTEP, TIMESTEP)
+        f = reference!(s)
+        norm(node_values(Y) .- f) / norm(f)
+    end
+    @test differences[1] > differences[5]
+    @test maximum(differences) > 1e-6
+    @test full_rank_agreement(case, 32, 64, 4, 5) ≈ maximum(differences[1:5]) rtol=8eps()
+    @test full_rank_agreement(case, 32, 64, 4, 20) ≈ maximum(differences) rtol=8eps()
     # a DLRA run made non-finite at step 5: the agreement is NaN, and the check throws
     perturb = (s, S) -> s == 5 && (S[1] = NaN)
     @test isnan(full_rank_agreement(linear_landau(), 32, 64, 32, 20; perturb))

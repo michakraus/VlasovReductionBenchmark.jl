@@ -101,7 +101,8 @@ so `[Unreleased]` has no target version.
   checks of the DLRA runs in the `core` group, and the smoke and the full mode of the script in
   the `slow` group.
 - Random is a direct dependency, for the seeded `Xoshiro` draws of the particles and of the
-  network parameters.
+  network parameters, and for the `seed!` of the default RNG that shuffles the minibatches of the
+  latent dynamics.
 - `scripts/particles.jl --runs-dir <d> --results-dir <r> [--smoke]`: a PIC run of nonlinear Landau
   damping ($\alpha = 0.5$, $k = 0.5$) with VlasovMethods' `SplittingMethod` on a periodic cubic
   B-spline potential with 32 cells. It draws 4096 particles (smoke: 512) by inverse-CDF sampling
